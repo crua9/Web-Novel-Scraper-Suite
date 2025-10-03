@@ -1,71 +1,81 @@
 # Web Novel Scraper Suite
-This project contains two Python scripts designed to download web novels from ScribbleHub and Royal Road and compile them into a single text file, perfect for use with Text-to-Speech (TTS) applications.
+My Motivation
 
-I made this so I can enjoy stories on Royal Road and Scribblehub. One script grabs links to given chapters and puts it in a txt file. And the other script takes those links and grabs the stories and puts them in a txt file. From there I just throw the txt file in a TTS and listen to it like an audio book while I do things. Doing it by hand it took an hour to do about 50 or so chapters. This takes seconds.
+I made this so I can enjoy stories on Royal Road and Scribblehub. I wanted a simple way to download web novels and listen to them with Text-to-Speech (TTS) like an audiobook while I do other things. Doing this by hand used to take me an hour for just 50 chapters; this suite does it in seconds.
 
-# The Scripts
-This suite consists of two main scripts that work together:
+The Scraper Suite
+This project has been combined into a single, powerful, menu-driven script: Web-Novel-Scraper-Suite.py. It handles the entire process from finding chapter links to creating final files for reading or listening, supporting both ScribbleHub and Royal Road.
 
-1. grab_links.py (Chapter Link Grabber): This script visits the main page of a story and scrapes the URLs for every single chapter.
-2. scraper.py (Chapter Content Scraper): This script reads a list of chapter URLs and scrapes the title and story content from each one, compiling them into a final text file.
+The old standalone scripts (grab_links.py and scraper.py) are still included as a backup in case you run into any issues, but the main suite is the recommended and easiest way to use this tool. I made it to make it an all in 1 thing. 
 
-# What the Scripts Does
-Chapter Link Grabber (grab_links.py)
-* It opens a visible browser window (do not close or minimize it).
-* It navigates to the story URL you provide.
-* It detects the website (ScribbleHub or Royal Road) and uses the appropriate method to find all chapter links.
-* For ScribbleHub, it clicks the "Show All Chapters" button and waits for the full list to load.
-* For Royal Road, it reads the chapter data directly from the page's code.
-* It organizes the links in chronological order.
-* It creates a new folder named links.
-* Finally, it saves the chapter URLs into one or more .txt files inside the links folder.
+If you run into problems, give the script, error, and site to an AI. Note I made it where other sites can be added or the ones I use can be edited if needed in it's own system config files. 
 
-Chapter Content Scraper (scraper.py)
-* It reads chapter_list.txt to find URLs that haven't been scraped yet (the ones without a ✔ checkmark).
-* It opens a visible browser window that should not be closed or minimized.
-* It navigates to each URL on its to-do list, one by one.
-* It detects the website and uses the correct method to find the chapter title and story content.
-* As each chapter is successfully scraped, it appends the formatted content to your final output file (e.g., My Awesome Story.txt).
-* It then updates chapter_list.txt, marking the line with a ✔ and the chapter title so it won't be scraped again.
-* If a chapter fails to load, it will automatically retry a few times before moving on.
-* After all scraping is finished, it re-reads the final output file and sorts all the chapters into the correct chronological order.
-* Any URLs that could not be scraped are saved in a separate failed_chapters.txt file for you to review.
+# What the Suite Does (The Workflow)
+The suite guides you through a simple, step-by-step process using a main menu:
 
+* Scrape Chapter Links (Option 1):
+    * You provide a story's main URL.
+    * The script automatically creates a dedicated project folder for your story.
+    * It scrapes all chapter links and saves them into numbered .txt files inside your project's links subfolder.
+* Assemble chapter_list.txt (Option 4):
+    * You select your project.
+    * The script shows you all the link files it found (e.g., "Links 1-100.txt", "Links 101-200.txt", etc.).
+    * You choose which files you want to process. This gives you the flexibility to work with a whole book or just a small batch of chapters.
+    * It then creates a master chapter_list.txt inside your project folder containing only the URLs you selected.
+
+* Scrape Story Content (Option 5):
+    * This is the core function. It reads the chapter_list.txt you just created.
+    * It intelligently scrapes only the chapters that haven't been downloaded yet (it marks completed ones with a ✔).
+    * As it successfully scrapes each chapter, it adds it to a main story file and updates the chapter_list.txt so you can safely stop and resume at any time.
+    * If a chapter fails, it retries a few times automatically.
+    * After scraping, it rebuilds the final .txt file to ensure every chapter is in the correct chronological order.
+    * Any links that fail repeatedly are saved to a failed_chapters.txt file for you to review.
+
+* Conversion Tools (Options 6, 7, 8):
+   * Once you have a scraped .txt file, you can easily convert it into other formats:
+   * EPUB: For e-readers.
+   * HTML: A clean, single-page file perfect for Microsoft Edge's "Read Aloud" feature.
+   * MP3: Creates individual audio files for each chapter using Google's Text-to-Speech.
 
 # Requirements
-Before you can run these scripts, you need to have Python installed on your system.
 
-Python 3: This script is written for Python 3. You can download it from the official Python website. During installation, it's highly recommended to check the box that says "Add Python to PATH".
+Python 3: You can download it from the official Python website. Important: During installation, check the box that says "Add Python to PATH".
 
-pip: The Python package installer. This is usually included with modern Python installations.
+pip: The Python package installer, which is included with modern Python installations.
 
-# Installation
-These scripts use the Playwright library to control a web browser. To set it up, you need to run two commands in your terminal or command prompt.
+Installation
+The script will handle installing its own dependencies, but if you want to do it manually, open your terminal or command prompt and run this single command:
 
-Install the Playwright Python library:
+pip install playwright requests ebooklib gtts
 
-pip install playwright
-
-Install the browsers for Playwright:
-This command downloads the browser files that Playwright needs to operate. This may take a few minutes.
+After that, you need to install the browser files that Playwright uses. This only needs to be done once.
 
 playwright install
 
-Once both commands have finished, your system is ready.
+Once both commands have finished, you're ready to go.
 
-# How to use it?
+# How to Use It (The Simple Way)
+I tried to make this as idiot-proof as possible.
 
-I tried to make this as idiot proof as possible. I suggest running your scripts in 1 folder location. Basically run the grabber script. You need to use a link to a story, use the main area where you can get a table of context like
-https://www.royalroad.com/fiction/108300/arcanist-in-another-world-a-healer-archmage-isekai
-https://www.scribblehub.com/series/10442/world-keeper/
+* Run the Main Script:
+   * Open your terminal or command prompt in the project folder and run:
+   * python Web-Novel-Scraper-Suite.py
+   * Scrape Links (Option 1):
+* Choose option 1 from the menu.
+   * Paste the main URL for a story on ScribbleHub or Royal Road (e.g., https://www.scribblehub.com/series/10442/world-keeper/).
+   * Give your project a name when prompted (e.g., "World Keeper"). The script handles all the folder creation automatically.
+* Assemble a Batch (Option 4):
+   * Choose option 4 from the menu and select the project you just created.
+   * The script will show you the link files it made. Choose the ones you want to process for this batch (e.g., just the file for chapters 1-100).
+   * This creates the chapter_list.txt that the scraper will use.
 
-Run that, and it will quickly generate txt files in a sub folder. I did it this way so it doesn't flood the main one because it will grab all the chapters. 
+* Scrape the Content (Option 5):
+   * Choose option 5 and select your project.
+   * The script will ask what you want to name the final text file. I recommend naming it by chapter batch (e.g., "World Keeper 1-100.txt"). This makes it easy to manage for TTS, which can sometimes struggle with very large files.
+   * Let the script run. A browser window will open and do the work. It will close automatically when finished.
 
-From here you can make a file in the main with the scripts named "chapter_list" make sure it is a txt file. Or change one of the files you made into that, and move it to where the scripts are.
+* Convert (Optional):
+   * If you want an EPUB, HTML, or MP3 files, just choose the corresponding option from the menu and select the .txt file you just created.
 
-Then go to the other script and do a paint by numbers with that one. It will basically ask you to confirm you did the above. It will ask you what to call the txt file it will generate. Personally I do [story title] chapters. So like timelord 50-100 so I know in that it has chapters 50-100 in that file. (why not the entire book. Most TTS freak out, and it is easier to deal with it like this if you accidently skipped around)
-
-
-Anyways, from there just let it do it's thing and you should have it in short order.
-
-If something goes wrong, I added an ability where you should be able to tell it to try again. Using the chapter list, it edits it as it goes through so it knows what it already found and where to place the new content. Again I tried to make this as paint by numbers as possible. 
+ Note the MP3 might take a good while. It is better to use other things if you want to do that. If you use eleven labs or like services, you can convert an entire book txt file to EPUB and it will note the chapters.
+ The HTML I added that in because Edge browser has a TTS many like to use.
