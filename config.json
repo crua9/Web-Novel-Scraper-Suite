@@ -1,0 +1,7 @@
+{
+    "headless_scraping": false,
+    "tracked_stories": {},
+    "github_pat": "",
+    "chunk_size": 100,
+    "last_project_folder": "World Keeper"
+}

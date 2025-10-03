@@ -1,85 +1,72 @@
-import re
-import json
 from playwright.sync_api import TimeoutError
+import re
 
-# This variable is used by the main script to identify which URLs this config handles.
-DOMAIN = "royalroad.com"
-# This tells the main script that the chapter list from the site does NOT need to be reversed,
-# as Royal Road provides it in chronological order.
-REVERSE_CHAPTERS = False 
+# --- Core Settings ---
+DOMAIN = "www.royalroad.com"
+REVERSE_CHAPTERS = False # Royal Road chapter lists are usually in chronological order
 
+# --- Main Functions ---
 def get_links(page):
     """
-    Scrapes all chapter links from a Royal Road fiction page.
-    This method is faster and more reliable as it reads data directly from a script tag
-    embedded in the page's HTML, rather than interacting with visible elements.
+    Scrapes all chapter links from a Royal Road fiction page by parsing
+    the chapter data embedded in the page's script.
     """
+    print("🔍 Extracting Royal Road links from page data...")
+    
+    # Wait for the chapters table to be visible to ensure scripts have loaded
+    page.wait_for_selector("#chapters", timeout=30000)
+    
+    script_content = page.content()
+    # Find the JavaScript block containing the chapter data
+    match = re.search(r'window\.chapters\s*=\s*(\[.*?\]);', script_content)
+    
+    if not match:
+        print("❌ Could not find chapter data script block.")
+        return []
+        
     try:
-        print("🔍 Extracting Royal Road links from page data...")
-        # First, wait for the chapter table element to be present. This is a good sign
-        # that the JavaScript containing the chapter data has loaded.
-        page.wait_for_selector("#chapters", timeout=30000)
-        
-        # Get the entire HTML content of the page
-        script_content = page.content()
-        # Use a regular expression to find the specific JavaScript variable `window.chapters`
-        # and capture the JSON array assigned to it.
-        match = re.search(r'window\.chapters\s*=\s*(\[.*?\]);', script_content)
-        
-        if not match:
-            print("❌ Could not find the chapter data script block on Royal Road.")
-            return []
-            
-        # Parse the captured string as JSON to get a list of chapter objects
+        # The matched group is a JSON string of a list of chapter objects
+        import json
         chapters_data = json.loads(match.group(1))
         base_url = "https://www.royalroad.com"
-        # Create a full URL for each chapter from the parsed data
-        urls = [base_url + chapter['url'] for chapter in chapters_data]
-        return urls
+        # Construct the full URL for each chapter
+        return [base_url + chapter['url'] for chapter in chapters_data]
     except (json.JSONDecodeError, KeyError) as e:
-        print(f"❌ Failed to parse Royal Road chapter data: {e}")
-        return []
-    except Exception as e:
-        print(f"❌ An error occurred during Royal Road link scraping: {e}")
+        print(f"❌ Failed to parse chapter data: {e}")
         return []
 
 def get_content(page, url):
     """
-    Scrapes the title, content, and author's notes from a Royal Road chapter page.
-    This function is called by the main scraper script.
+    This function is responsible for scraping the title, content, and author's note
+    of a single Royal Road chapter page.
     """
+    page.goto(url, wait_until='domcontentloaded', timeout=60000)
+    
+    # Get the chapter title from the main h1 element
+    title_selector = 'h1'
+    page.wait_for_selector(title_selector, timeout=30000)
+    title = page.inner_text(title_selector).strip()
+
+    # Get the main chapter content
+    content_selector = '.chapter-content'
+    page.wait_for_selector(content_selector, timeout=30000)
+    content_html = page.inner_html(content_selector)
+    
+    # Convert HTML to plain text, preserving paragraph breaks
+    content_text = content_html.replace('</p>', '\n').replace('<p>', '')
+    content_text = re.sub('<[^>]*>', '', content_text).strip()
+
+    # Scrape the author's note, if it exists
+    author_note = None
     try:
-        # Navigate to the chapter page with a generous timeout
-        page.goto(url, timeout=60000)
-        # Wait until the initial HTML is parsed
-        page.wait_for_load_state("domcontentloaded", timeout=60000)
+        note_selector = '.author-note'
+        # Use a short timeout because the note may not be present
+        page.wait_for_selector(note_selector, timeout=3000) 
+        note_html = page.inner_html(note_selector)
+        note_text = note_html.replace('</p>', '\n').replace('<p>', '')
+        author_note = re.sub('<[^>]*>', '', note_text).strip()
+    except TimeoutError:
+        # It's normal for a chapter to not have an author's note
+        pass 
         
-        # Define the specific CSS selectors for Royal Road
-        title_selector = "h1"
-        content_selector = ".chapter-content"
-        notes_selector = ".author-note-portlet"
-        
-        # Wait for the essential elements to be ready on the page
-        page.wait_for_selector(title_selector, state="attached", timeout=30000)
-        page.wait_for_selector(content_selector, state="attached", timeout=30000)
-
-        author_notes = None
-        # Find the author's notes element
-        notes_element = page.query_selector(notes_selector)
-        if notes_element:
-            # If notes exist, get their text content
-            author_notes = notes_element.inner_text().strip()
-            # Run a piece of JavaScript to remove the notes element from the page.
-            # This ensures it won't be included when we scrape the main content.
-            page.evaluate("document.querySelector('.author-note-portlet')?.remove()")
-            
-        # Scrape the title and the now-cleaned content
-        title = page.query_selector(title_selector).inner_text().strip()
-        content = page.query_selector(content_selector).inner_text().strip()
-        
-        return title, content, author_notes
-    except Exception as e:
-        print(f"❌ Error scraping Royal Road content from {url}: {e}")
-        # Return an error message in the title to signify failure
-        return f"Error scraping: {url}", None, None
-
+    return title, content_text, author_note

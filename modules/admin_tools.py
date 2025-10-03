@@ -40,9 +40,14 @@ def update_site_configs(config):
             return
             
     print("\n" + "─"*10 + " Update Site Configurations " + "─"*10)
-    repo_url = input(f"🔗 Enter GitHub API URL [default: {config.get('github_repo_url')}]: ").strip() or config.get('github_repo_url')
-    config["github_repo_url"] = repo_url
-    save_config(config)
+    repo_url = config.get('github_repo_url', "https://api.github.com/repos/crua9/Web-Novel-Scraper-Suite/contents/site_configs")
+    repo_url_prompt = f"🔗 Enter GitHub API URL [default: {repo_url}]: "
+    
+    user_input_url = input(repo_url_prompt).strip()
+    if user_input_url:
+        repo_url = user_input_url
+        config["github_repo_url"] = repo_url
+        save_config(config)
     
     try:
         response = requests.get(repo_url)

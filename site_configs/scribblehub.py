@@ -1,82 +1,73 @@
-import re
 from playwright.sync_api import TimeoutError
+import re
 
-# This variable is used by the main script to identify which URLs this config handles.
-DOMAIN = "scribblehub.com"
-# This tells the main script that the chapter list from the site needs to be reversed.
-REVERSE_CHAPTERS = True 
+# --- Core Settings ---
+DOMAIN = "www.scribblehub.com"
+REVERSE_CHAPTERS = True # This method gets links from newest to oldest
 
+# --- Main Functions ---
 def get_links(page):
     """
-    Scrapes all chapter links from a ScribbleHub series page.
-    This function is called by the main scraper script.
+    Scrapes all chapter links from a ScribbleHub series page by clicking
+    the 'Show All Chapters' button and waiting for the full list to load.
     """
+    print("📖 Clicking the 'Show All Chapters' icon...")
+    
+    # Handle the cookie consent banner first, if it appears
     try:
-        print("📖 Clicking the 'Show All Chapters' icon...")
-        # Use Playwright's get_by_title locator, which is robust
-        page.get_by_title("Show All Chapters").click()
-        
-        print("⏳ Waiting for all chapters to load... (this might take a minute or two)")
-        # Wait for the pagination element to disappear, which signals the full list has loaded.
-        page.wait_for_selector("#pagination-mesh-toc", state="hidden", timeout=120000)
-        print("✅ TOC fully loaded.")
-        
-        links = page.query_selector_all(".toc_ol .toc_a")
-        base_url = "https://www.scribblehub.com"
-        urls = []
-        for link in links:
-            href = link.get_attribute("href")
-            if href:
-                # Ensure the URL is absolute
-                if href.startswith('/'):
-                    urls.append(base_url + href.strip())
-                else:
-                    urls.append(href.strip())
-        return urls
+        page.get_by_role("button", name="Got it!").click(timeout=5000)
+        print("✅ Cookie consent accepted.")
     except TimeoutError:
-        print("❌ Timed out waiting for the full chapter list to load on ScribbleHub.")
-        return []
-    except Exception as e:
-        print(f"❌ An error occurred during ScribbleHub link scraping: {e}")
-        return []
+        print("👍 No cookie consent banner found or it was already handled.")
+
+    # Click the icon to load all chapters
+    page.locator('i[title="Show All Chapters"]').click()
+    
+    print("⏳ Waiting for all chapters to load... (this might take a minute)")
+    # The '#pagination-mesh-toc' element disappears when the list is fully loaded
+    page.wait_for_selector("#pagination-mesh-toc", state="hidden", timeout=120000)
+    print("✅ Full chapter list loaded.")
+    
+    links = page.query_selector_all(".toc_ol .toc_a")
+    base_url = "https://www.scribblehub.com"
+    urls = []
+    for link in links:
+        href = link.get_attribute("href")
+        if href:
+            # Ensure the link is a full URL
+            full_url = href.strip() if href.strip().startswith('http') else base_url + href.strip()
+            urls.append(full_url)
+    return urls
 
 def get_content(page, url):
     """
-    Scrapes the title, content, and author's notes from a ScribbleHub chapter page.
-    This function is called by the main scraper script.
+    This function is responsible for scraping the title and content of a single
+    ScribbleHub chapter page.
     """
+    page.goto(url, wait_until='domcontentloaded', timeout=60000)
+
+    # Handle cookie consent on chapter pages as well
     try:
-        # Navigate to the chapter page with a generous timeout
-        page.goto(url, timeout=60000)
-        # Wait until the initial HTML is parsed
-        page.wait_for_load_state("domcontentloaded", timeout=60000)
-        
-        # Define the specific CSS selectors for ScribbleHub
-        title_selector = "div.chapter-title"
-        content_selector = "#chp_raw"
-        notes_selector = ".wi_authornotes"
+        page.get_by_role("button", name="Got it!").click(timeout=3000)
+    except TimeoutError:
+        pass # No banner found, continue
 
-        # Wait for the essential elements to be ready on the page
-        page.wait_for_selector(title_selector, state="attached", timeout=30000)
-        page.wait_for_selector(content_selector, state="attached", timeout=30000)
-        
-        author_notes = None
-        # Find the author's notes element
-        notes_element = page.query_selector(notes_selector)
-        if notes_element:
-            # If notes exist, get their text content
-            author_notes = notes_element.inner_text().strip()
-            # Run a piece of JavaScript to remove the notes element from the page.
-            # This ensures it won't be included when we scrape the main content.
-            page.evaluate("document.querySelector('.wi_authornotes')?.remove()")
+    # Get the chapter title
+    title_selector = 'h1.chapter-title'
+    page.wait_for_selector(title_selector, timeout=30000)
+    title = page.inner_text(title_selector).strip()
 
-        # Scrape the title and the now-cleaned content
-        title = page.query_selector(title_selector).inner_text().strip()
-        content = page.query_selector(content_selector).inner_text().strip()
-        
-        return title, content, author_notes
-    except Exception as e:
-        print(f"❌ Error scraping ScribbleHub content from {url}: {e}")
-        # Return an error message in the title to signify failure
-        return f"Error scraping: {url}", None, None
+    # Get the chapter content from the specific div
+    content_selector = '#chp_raw'
+    page.wait_for_selector(content_selector, timeout=30000)
+    
+    content_html = page.inner_html(content_selector)
+    
+    # Convert HTML to plain text, preserving paragraph breaks
+    content_text = content_html.replace('</p>', '\n').replace('<p>', '')
+    content_text = re.sub('<[^>]*>', '', content_text).strip()
+    
+    # ScribbleHub does not have a separate, consistent container for author's notes
+    # at the end of a chapter, so we return None for the author_note.
+    return title, content_text, None
 
