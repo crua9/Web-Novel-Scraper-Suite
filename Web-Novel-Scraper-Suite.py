@@ -2,14 +2,12 @@ import sys
 import os
 import importlib
 import subprocess
-import hashlib
-import urllib.request
 
 # --- Import from our new modules ---
 # This corrected structure ensures all functions are imported from their correct files.
 from modules.utils import (
     load_config, save_config, install_package, check_and_install_dependencies,
-    load_site_configs, check_for_self_update, SITE_CONFIGS_DIR
+    load_site_configs, SITE_CONFIGS_DIR
 )
 from modules.admin_tools import manage_stories, update_site_configs
 from modules.link_manager import scrape_new_story_links, check_for_updates, check_for_revived_links
@@ -47,7 +45,7 @@ def run_startup_checks():
         if not check_and_install_dependencies(['playwright']):
             return False
     
-    check_for_self_update()
+    # The check_for_self_update function was removed by the developer.
 
     global SITE_CONFIGS
     SITE_CONFIGS = load_site_configs()
@@ -131,4 +129,3 @@ if __name__ == "__main__":
             traceback.print_exc()
             
     input("\nPress Enter to exit.")
-
