@@ -79,3 +79,8 @@ I tried to make this as idiot-proof as possible.
 
  Note the MP3 might take a good while. It is better to use other things if you want to do that. If you use eleven labs or like services, you can convert an entire book txt file to EPUB and it will note the chapters.
  The HTML I added that in because Edge browser has a TTS many like to use.
+
+
+
+ Note the option to mark them as complete (option 9) it is for option 2 so it ignores those stories when looking for an update. If you don't want to deal with a story for a while or whatever or it is completed. Use this to speed up option 2. 
+ I did this because many stories are active, and but it takes a little time to go through them all depending on how many you have. So this should help some.
