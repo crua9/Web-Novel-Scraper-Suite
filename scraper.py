@@ -4,6 +4,10 @@ import sys
 import os
 import re
 
+# --- Constants ---
+SUBFOLDER_PREF_FILE = "_subfolder_pref.txt"
+
+# --- User Input and Setup ---
 
 # Confirm chapter_list.txt is ready
 if not os.path.exists("chapter_list.txt"):
@@ -16,20 +20,49 @@ if confirmation not in ["y", "yes"]:
     print("\n📄 Please add chapter URLs to 'chapter_list.txt' (one per line) and run the script again.")
     sys.exit()
 
-# Ask for output filename
-filename_input = input("\n📂 Enter output filename (e.g., World Keeper 300-400): ").strip()
-if not filename_input:
-    output_file = "scraped_chapters.txt"
-else:
-    output_file = filename_input if filename_input.lower().endswith(".txt") else f"{filename_input}.txt"
+# --- NEW: Subfolder Selection Logic ---
+subfolder_name = ""
+if os.path.exists(SUBFOLDER_PREF_FILE):
+    with open(SUBFOLDER_PREF_FILE, "r", encoding="utf-8") as f:
+        last_folder = f.read().strip()
+    if last_folder:
+        use_last = input(f"\n📁 The last used subfolder was '{last_folder}'. Use this folder again? (y/n): ").strip().lower()
+        if use_last in ['y', 'yes']:
+            subfolder_name = last_folder
 
-# --- Ask to save author's notes ---
+# If no previous folder was found or the user wants a new one
+if not subfolder_name:
+    subfolder_name = input("\n📂 Enter the name for the subfolder to save files in (e.g., World Keeper): ").strip()
+
+# Validate and save the preference
+if not subfolder_name:
+    print("⚠️ Subfolder name cannot be empty. Exiting.")
+    sys.exit()
+
+with open(SUBFOLDER_PREF_FILE, "w", encoding="utf-8") as f:
+    f.write(subfolder_name)
+
+os.makedirs(subfolder_name, exist_ok=True)
+print(f"✅ Files will be saved in the '{subfolder_name}' subfolder.")
+
+# Ask for output filename (base name)
+filename_input = input(f"\n📂 Enter output filename for inside '{subfolder_name}' (e.g., World Keeper 300-400): ").strip()
+if not filename_input:
+    base_output_filename = "scraped_chapters.txt"
+else:
+    base_output_filename = filename_input if filename_input.lower().endswith(".txt") else f"{filename_input}.txt"
+
+# Construct full path for the output file
+output_file = os.path.join(subfolder_name, base_output_filename)
+
+# Ask to save author's notes
 save_notes_input = input("\n📝 Save author's notes to a separate file? (y/n): ").strip().lower()
 save_author_notes = save_notes_input in ["y", "yes"]
 notes_output_file = ""
 if save_author_notes:
-    base_name, ext = os.path.splitext(output_file)
-    notes_output_file = f"{base_name} Author notes{ext}"
+    base_name, ext = os.path.splitext(base_output_filename)
+    notes_filename = f"{base_name} Author notes{ext}"
+    notes_output_file = os.path.join(subfolder_name, notes_filename)
     print(f"🗒️  Author's notes will be saved to: {notes_output_file}")
 
 
@@ -64,7 +97,7 @@ def scrape_chapter_content(page, url, timeout_ms):
         page.wait_for_selector(content_selector, state="attached", timeout=timeout_ms)
         
         author_notes = None
-        # --- Extract and Remove Author's Notes ---
+        # Extract and Remove Author's Notes
         if "scribblehub.com" in url:
             notes_element = page.query_selector('.wi_authornotes')
             if notes_element:
@@ -123,7 +156,6 @@ def append_to_output_file(filepath, title, content):
     with open(filepath, "a", encoding="utf-8") as f:
         f.write(f"\n--- {title} ---\n\n{content}\n")
 
-# --- NEW: Function to save author's notes ---
 def append_to_notes_file(filepath, title, notes):
     """Appends a chapter's author notes to the specified file."""
     with open(filepath, "a", encoding="utf-8") as f:
@@ -208,7 +240,6 @@ def run_scraper(save_notes_flag, notes_file_path):
                     print(f"✅ Scraped and appended: {title}")
                     append_to_output_file(output_file, title, content)
                     
-                    # --- NEW: Save notes if requested and available ---
                     if save_notes_flag and author_notes:
                         print(f"🗒️  Saving author's note for: {title}")
                         append_to_notes_file(notes_file_path, title, author_notes)
