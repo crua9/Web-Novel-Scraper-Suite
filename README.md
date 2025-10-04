@@ -82,5 +82,5 @@ I tried to make this as idiot-proof as possible.
 
 
 
- Note the option to mark them as complete (option 9) it is for option 2 so it ignores those stories when looking for an update. If you don't want to deal with a story for a while or whatever or it is completed. Use this to speed up option 2. 
+ Note the option to mark them as complete (option 10) it is for option 2 so it ignores those stories when looking for an update. If you don't want to deal with a story for a while or whatever or it is completed. Use this to speed up option 2. 
  I did this because many stories are active, and but it takes a little time to go through them all depending on how many you have. So this should help some.
