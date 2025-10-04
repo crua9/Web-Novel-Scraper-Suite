@@ -14,7 +14,7 @@ If you run into problems, give the script, error, and site to an AI. Note I made
 The suite guides you through a simple, step-by-step process using a main menu:
 
 * Scrape Chapter Links (Option 1):
-    * You provide a story's main URL.
+    * You provide a story's main URL. The area that links all the chapters.
     * The script automatically creates a dedicated project folder for your story.
     * It scrapes all chapter links and saves them into numbered .txt files inside your project's links subfolder.
 * Assemble chapter_list.txt (Option 4):
