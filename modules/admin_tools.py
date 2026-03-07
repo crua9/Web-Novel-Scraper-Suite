@@ -4,33 +4,84 @@ import requests
 from .utils import load_stories_db, save_stories_db, save_config, check_and_install_dependencies
 
 def manage_stories():
-    """Allows the user to mark stories as complete or active."""
-    print("\n" + "─"*10 + " Manage Tracked Stories " + "─"*10)
-    db = load_stories_db()
-    if not db:
-        print("No stories are currently being tracked.")
-        return
-        
-    stories = list(db.keys())
+    """Allows the user to modify or delete tracked stories."""
     while True:
+        print("\n" + "─"*10 + " Manage Tracked Stories " + "─"*10)
+        db = load_stories_db()
+        if not db:
+            print("No stories are currently being tracked.")
+            return
+        
+        stories = list(db.keys())
         print("\nYour tracked stories:")
         for i, name in enumerate(stories):
             status = "Complete" if db[name].get('is_complete') else "Active"
             print(f"  {i+1}: {name} ({status})")
+        
+        print("\nOptions:")
+        print("  T: Toggle Active/Complete status")
+        print("  E: Edit a story's URL")
+        print("  D: Delete a story entirely")
         print("  0: Back to Main Menu")
+        
+        action = input("\nWhat would you like to do? (T/E/D/0): ").strip().upper()
+        if action == '0':
+            break
+            
+        if action not in ['T', 'E', 'D']:
+            print("⚠️ Invalid choice.")
+            continue
+            
         try:
-            choice = int(input("\nEnter number to toggle status: ").strip())
-            if choice == 0:
-                break
-            if 1 <= choice <= len(stories):
-                story_name = stories[choice - 1]
+            choice = int(input(f"Enter the number of the story to modify: ").strip())
+            if not (1 <= choice <= len(stories)):
+                print("⚠️ Invalid number.")
+                continue
+                
+            story_name = stories[choice - 1]
+            
+            if action == 'T':
                 db[story_name]['is_complete'] = not db[story_name].get('is_complete', False)
                 save_stories_db(db)
                 print(f"✅ '{story_name}' marked as {'Complete' if db[story_name]['is_complete'] else 'Active'}.")
-            else:
-                print("⚠️ Invalid number.")
+                
+            elif action == 'E':
+                current_url = db[story_name].get('story_url', '')
+                print(f"\nCurrent URL: {current_url}")
+                new_url = input("Enter new URL (or press Enter to cancel): ").strip()
+                if new_url:
+                    db[story_name]['story_url'] = new_url
+                    save_stories_db(db)
+                    print(f"✅ URL updated for '{story_name}'.")
+                    
+            elif action == 'D':
+                confirm = input(f"⚠️ Are you sure you want to delete '{story_name}'? (y/n): ").strip().lower()
+                if confirm in ['y', 'yes']:
+                    del db[story_name]
+                    save_stories_db(db)
+                    print(f"🗑️ '{story_name}' has been removed from tracking.")
+                    
         except ValueError:
             print("⚠️ Please enter a valid number.")
+
+def show_help_qa():
+    """Displays a quick Q&A guide for common issues."""
+    print("\n" + "─"*10 + " Help & Troubleshooting Q&A " + "─"*10)
+    print("\nQ: What if a story link goes bad or says [DEAD LINK]?")
+    print("A: Open 'chapter_list.txt' in your project folder, find the broken link, and fix the URL manually or delete the line so the scraper skips it. You can also run the 'Check for Revived Links' tool from the main menu.")
+    
+    print("\nQ: The scraper keeps timing out or failing to load pages.")
+    print("A: This is usually Cloudflare or a slow connection. The script has built-in retries. If it fails completely, check 'failed_chapters.txt' in your project folder. You can re-run the scraper later and it will only try to grab the ones it missed.")
+    
+    print("\nQ: How do I change the main URL for a story if it moved?")
+    print("A: Use option '10: Manage Tracked Stories' from the main menu, press 'E' to edit, and paste the new link.")
+    
+    print("\nQ: Cloudflare keeps blocking me.")
+    print("A: When the browser pops up, solve the CAPTCHA manually. The script will wait up to 5 minutes for you to do this before it times out.")
+    
+    print("\nQ: I want to redownload a chapter that got messed up.")
+    print("A: Open 'chapter_list.txt', find the chapter, and remove the '✔' and title from the start of the line. Also, open your scraped text file and delete that chapter's text. Run the scraper again.")
+    print("\n" + "─"*40)
 
 def update_site_configs(config):
     """Downloads the latest site configuration files from GitHub."""
@@ -70,34 +121,3 @@ def update_site_configs(config):
             
     except Exception as e:
         print(f"❌ Error fetching from GitHub: {e}")
-
-def sync_db_with_text():
-    """Exports DB to a text file, lets user edit it, then imports changes back."""
-    print("\n" + "─"*10 + " Sync Database via Text File " + "─"*10)
-    db = load_stories_db()
-    txt_file = "tracked_stories_list.txt"
-    
-    # Export current DB to text
-    with open(txt_file, "w", encoding="utf-8") as f:
-        f.write("# Delete lines to remove stories. Do not change the names of the ones you keep.\n")
-        for story in db.keys():
-            f.write(f"{story}\n")
-            
-    print(f"✅ Exported your stories to '{txt_file}'.")
-    input("Open that file, delete the stories you don't want, save it, and press Enter here...")
-    
-    # Import back and delete removed ones
-    try:
-        with open(txt_file, "r", encoding="utf-8") as f:
-            kept_stories = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-            
-        removed = 0
-        for story in list(db.keys()):
-            if story not in kept_stories:
-                del db[story]
-                removed += 1
-                
-        save_stories_db(db)
-        print(f"✅ Synced! Removed {removed} stories from your tracking database.")
-    except Exception as e:
-        print(f"❌ Error reading text file: {e}")
