@@ -1,127 +1,74 @@
 import sys
 import os
-import importlib
-
-# --- Import from our new modules ---
-from modules.utils import (
-    load_config, save_config, check_and_install_dependencies,
-    load_site_configs, SITE_CONFIGS_DIR, print_progress_bar, scrape_chapter_content
-)
+from modules.utils import load_config, save_config, get_theme_colors, check_and_install_dependencies, load_site_configs
 from modules.admin_tools import manage_stories, update_site_configs, show_help_qa
 from modules.link_manager import scrape_new_story_links, check_for_updates, check_for_revived_links
 from modules.content_manager import assemble_chapter_list, scrape_story_content
 from modules.converter_tools import create_epub_from_files, create_edge_html_from_file, create_mp3s_from_file
 
-# --- Dependency Flags ---
-PLAYWRIGHT_INSTALLED = False
-EBOOKLIB_INSTALLED = False
-GTTS_INSTALLED = False
-REQUESTS_INSTALLED = False
-
-# --- Constants ---
-SITE_CONFIGS = {}
-
-# --- Startup Checks ---
-def run_startup_checks():
-    """Performs initial checks for all dependencies and offers to install them."""
-    print("🚀 Running startup checks...")
-    print(f"🐍 Running with Python interpreter located at: {sys.executable}")
+def change_theme():
+    config = load_config()
+    clr = get_theme_colors()
+    S, W = clr['S'], clr['W']
+    print(f"\n{S}🎨 Select Theme Number:{W}")
+    print(f" {S}1{W}: Cyberpunk")
+    print(f" {S}2{W}: Matrix")
+    print(f" {S}3{W}: Classic")
+    t_choice = input(f"\n{S}Selection: {W}").strip()
     
-    # Set initial global flags for dependencies
-    global PLAYWRIGHT_INSTALLED, EBOOKLIB_INSTALLED, GTTS_INSTALLED, REQUESTS_INSTALLED
-    try: import playwright; PLAYWRIGHT_INSTALLED = True
-    except ImportError: pass
-    try: from ebooklib import epub; EBOOKLIB_INSTALLED = True
-    except ImportError: pass
-    try: from gtts import gTTS; GTTS_INSTALLED = True
-    except ImportError: pass
-    try: import requests; REQUESTS_INSTALLED = True
-    except ImportError: pass
+    themes = {"1": "cyberpunk", "2": "matrix", "3": "classic"}
+    if t_choice in themes:
+        config["theme"] = themes[t_choice]
+        save_config(config)
+        print(f"{clr['G']}✅ Theme updated! Restart to apply.{W}")
+    else:
+        print(f"{clr['R']}❌ Invalid choice.{W}")
 
-    # Core dependency check
-    if not PLAYWRIGHT_INSTALLED:
-        print("\n--- ⚠️ Core Library Missing ---")
-        if not check_and_install_dependencies(['playwright']):
-            return False
-
-    global SITE_CONFIGS
-    SITE_CONFIGS = load_site_configs()
-    if not SITE_CONFIGS and REQUESTS_INSTALLED:
-        print("\n⚠️ No site configurations found.")
-        if input("Download the default configurations from GitHub now? (y/n): ").strip().lower() in ['y', 'yes']:
-            update_site_configs(load_config())
-            SITE_CONFIGS = load_site_configs()
-            
-    print("\n✅ Startup checks passed.")
-    return True
-
-# --- Main Menu ---
 def main_menu():
-    """Displays the main menu and handles user choices."""
     config = load_config()
     while True:
-        print("\n" + "─"*10 + " 📘 Web Novel Scraper Suite 📘 " + "─"*10)
-        print("--- Link Management ---")
-        print("1: Scrape Chapter Links for a New Story")
-        print("2: Check Tracked Stories for Link Updates")
-        print("3: Check for Revived Links in a Project")
-        print("--- Content Management ---")
-        print("4: Assemble `chapter_list.txt` from Link Files")
-        print("5: Scrape Story Content from `chapter_list.txt`")
-        print("--- Conversion Tools ---")
-        print("6: Create EPUB Ebook from Story File(s)")
-        print("7: Create HTML file for Edge Read Aloud")
-        print("8: Create MP3 Audio Files from Story File")
-        print("--- Administration ---")
-        print("9: Update Site Configurations from GitHub")
-        print("10: Manage Tracked Stories (Edit/Delete/Toggle)")
-        print("11: Help & Troubleshooting Q&A")
-        print("12: Exit")
-        choice = input("Enter your choice (1-12): ").strip()
+        clr = get_theme_colors()
+        P, S, G, Y, R, W = clr['P'], clr['S'], clr['G'], clr['Y'], clr['R'], clr['W']
+        SITE_CONFIGS = load_site_configs()
 
-        if choice == '1': 
-            if check_and_install_dependencies(['playwright']):
-                scrape_new_story_links(config, SITE_CONFIGS)
-        elif choice == '2': 
-            if check_and_install_dependencies(['playwright', 'requests']):
-                check_for_updates(config, SITE_CONFIGS)
-        elif choice == '3':
-             if check_and_install_dependencies(['playwright']):
-                check_for_revived_links(config, SITE_CONFIGS)
-        elif choice == '4':
-            assemble_chapter_list()
-        elif choice == '5': 
-            if check_and_install_dependencies(['playwright']):
-                scrape_story_content(config, SITE_CONFIGS)
-        elif choice == '6': 
-            create_epub_from_files()
-        elif choice == '7':
-            create_edge_html_from_file()
-        elif choice == '8': 
-            create_mp3s_from_file()
-        elif choice == '9': 
-            if check_and_install_dependencies(['requests']):
-                update_site_configs(config)
-        elif choice == '10':
-            manage_stories()
-        elif choice == '11':
-            show_help_qa()
-        elif choice == '12':
-            print("Goodbye!"); break
-        else:
-            print("⚠️ Invalid choice.")
-        input("\nPress Enter to return to the menu...")
+        print(f"\n{S}────────── 📘 {W}Web Novel Scraper Suite{S} ──────────{W}")
+        print(f"{G}--- Link Management ---{W}")
+        print(f" {G}1{W}: Scrape New Story Links")
+        print(f" {G}2{W}: Check for Link Updates")
+        print(f" {G}3{W}: Check for Revived Links")
+        print(f"\n{P}--- Content Management ---{W}")
+        print(f" {P}4{W}: Assemble `chapter_list.txt`")
+        print(f" {P}5{W}: Scrape Story Content")
+        print(f"\n{Y}--- Conversion Tools ---{W}")
+        print(f" {Y}6{W}: Create EPUB Ebook")
+        print(f" {Y}7{W}: Create HTML (Edge)")
+        print(f" {Y}8{W}: Create MP3 Audio Files")
+        print(f"\n{S}--- Administration ---{W}")
+        print(f" {S}9{W}: Update Site Configs")
+        print(f" {S}10{W}: Manage Tracked Stories")
+        print(f" {S}11{W}: Help & Troubleshooting")
+        print(f" {S}12{W}: Change Theme")
+        print(f" {S}13{W}: Exit")
+        
+        choice = input(f"\n{S}Selection: {W}").strip()
 
-# --- Main Execution ---
+        if choice == '1': scrape_new_story_links(config, SITE_CONFIGS)
+        elif choice == '2': check_for_updates(config, SITE_CONFIGS)
+        elif choice == '3': check_for_revived_links(config, SITE_CONFIGS)
+        elif choice == '4': assemble_chapter_list()
+        elif choice == '5': scrape_story_content(config, SITE_CONFIGS)
+        elif choice == '6': create_epub_from_files()
+        elif choice == '7': create_edge_html_from_file()
+        elif choice == '8': create_mp3s_from_file()
+        elif choice == '9': update_site_configs(config)
+        elif choice == '10': manage_stories()
+        elif choice == '11': show_help_qa()
+        elif choice == '12': change_theme()
+        elif choice == '13': print(f"{Y}Goodbye!{W}"); break
+        else: print(f"{R}⚠️ Invalid choice.{W}")
+        input(f"\n{S}Press Enter to return...{W}")
+
 if __name__ == "__main__":
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    if run_startup_checks():
-        try:
-            main_menu()
-        except Exception as e:
-            print(f"\n--- An Unexpected Error Occurred in Main Application ---")
-            print(f"Error: {type(e).__name__} - {e}")
-            import traceback
-            traceback.print_exc()
-            
-    input("\nPress Enter to exit.")
+    check_and_install_dependencies(['playwright', 'requests'])
+    main_menu()
