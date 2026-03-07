@@ -10,6 +10,13 @@ The old standalone scripts (grab_links.py and scraper.py) are still included as 
 
 If you run into problems, give the script, error, and site to an AI. Note I made it where other sites can be added or the ones I use can be edited if needed in it's own system config files. 
 
+# Run the script doing the following:
+
+Open the main folder of this. Right click and open in terminal so it automatically jumps to that folder. Then put in the following
+
+python Web-Novel-Scraper-Suite.py
+
+
 # What the Suite Does (The Workflow)
 The suite guides you through a simple, step-by-step process using a main menu:
 
