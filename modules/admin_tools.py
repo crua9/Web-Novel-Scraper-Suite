@@ -1,30 +1,42 @@
 import os
 import json
 import requests
-from .utils import load_stories_db, save_stories_db, save_config, check_and_install_dependencies
+from datetime import datetime
+from .utils import load_stories_db, save_stories_db, save_config, check_and_install_dependencies, get_theme_colors
 
 def manage_stories():
-    """Allows the user to modify or delete tracked stories."""
+    """Allows the user to modify or delete tracked stories with a colored table."""
     while True:
-        print("\n" + "─"*10 + " Manage Tracked Stories " + "─"*10)
+        clr = get_theme_colors()
+        P, S, G, Y, R, W = clr['P'], clr['S'], clr['G'], clr['Y'], clr['R'], clr['W']
+        
+        print(f"\n{P}────────── 📚 Manage Tracked Stories ──────────{W}")
         db = load_stories_db()
         if not db:
-            print("No stories are currently being tracked.")
+            print("No stories tracked.")
             return
         
         stories = list(db.keys())
-        print("\nYour tracked stories:")
+        
+        # Table Header
+        print(f"{Y}{'ID':<4} {'Status':<12} {'Chaps':<7} {'Story Name'}{W}")
+        print(f"{P}─" * 60 + f"{W}")
+
         for i, name in enumerate(stories):
-            status = "Complete" if db[name].get('is_complete') else "Active"
-            print(f"  {i+1}: {name} ({status})")
+            story_data = db[name]
+            is_comp = story_data.get('is_complete', False)
+            
+            # Formatting
+            status_text = f"{S}Complete{W}" if is_comp else f"{G}Active{W}"
+            chapters = story_data.get('last_chapter_count', 0)
+            
+            # Print row
+            print(f"{Y}{i+1:<4}{W} {status_text:<20} {chapters:<7} {name}")
         
-        print("\nOptions:")
-        print("  T: Toggle Active/Complete status")
-        print("  E: Edit a story's URL")
-        print("  D: Delete a story entirely")
-        print("  0: Back to Main Menu")
+        print(f"{P}─" * 60 + f"{W}")
+        print(f" {G}T{W}: Toggle | {G}E{W}: Edit URL | {R}D{W}: Delete | {Y}0{W}: Back")
         
-        action = input("\nWhat would you like to do? (T/E/D/0): ").strip().upper()
+        action = input(f"\n{S}Action (T/E/D/0):{W} ").strip().upper()
         if action == '0':
             break
             
@@ -33,9 +45,9 @@ def manage_stories():
             continue
             
         try:
-            choice = int(input(f"Enter the number of the story to modify: ").strip())
+            choice = int(input(f"{S}Enter Story ID #: {W}").strip())
             if not (1 <= choice <= len(stories)):
-                print("⚠️ Invalid number.")
+                print("⚠️ Invalid ID.")
                 continue
                 
             story_name = stories[choice - 1]
@@ -43,66 +55,56 @@ def manage_stories():
             if action == 'T':
                 db[story_name]['is_complete'] = not db[story_name].get('is_complete', False)
                 save_stories_db(db)
-                print(f"✅ '{story_name}' marked as {'Complete' if db[story_name]['is_complete'] else 'Active'}.")
+                print(f"✨ Status updated for {story_name}!")
                 
             elif action == 'E':
-                current_url = db[story_name].get('story_url', '')
-                print(f"\nCurrent URL: {current_url}")
-                new_url = input("Enter new URL (or press Enter to cancel): ").strip()
+                print(f"\n🔗 Current: {db[story_name].get('story_url', '')}")
+                new_url = input(f"{S}New URL (Enter to cancel): {W}").strip()
                 if new_url:
                     db[story_name]['story_url'] = new_url
                     save_stories_db(db)
-                    print(f"✅ URL updated for '{story_name}'.")
+                    print(f"✅ URL updated!")
                     
             elif action == 'D':
-                confirm = input(f"⚠️ Are you sure you want to delete '{story_name}'? (y/n): ").strip().lower()
-                if confirm in ['y', 'yes']:
+                confirm = input(f"{R}🔥 Delete '{story_name}'? (y/n): {W}").strip().lower()
+                if confirm == 'y':
                     del db[story_name]
                     save_stories_db(db)
-                    print(f"🗑️ '{story_name}' has been removed from tracking.")
+                    print(f"🗑️ Story removed.")
                     
         except ValueError:
-            print("⚠️ Please enter a valid number.")
+            print("⚠️ Please enter a number.")
 
 def show_help_qa():
-    """Displays a quick Q&A guide for common issues."""
-    print("\n" + "─"*10 + " Help & Troubleshooting Q&A " + "─"*10)
+    """Displays a quick Q&A guide with icons."""
+    clr = get_theme_colors()
+    P, S, G, Y, R, W = clr['P'], clr['S'], clr['G'], clr['Y'], clr['R'], clr['W']
     
-    print("\nQ: What if a main story link goes bad or needs to be changed?")
-    print("A: Open the 'stories_db.json' file in the main folder and edit the URL there, or use option '10: Manage Tracked Stories' from the main menu, press 'E' to edit, and paste the new link.")
+    print(f"\n{P}────────── 💡 Help & Troubleshooting ──────────{W}")
     
-    print("\nQ: What does marking a story as Active or Complete do?")
-    print("A: Marking a story as 'Complete' tells the scraper to ignore it when you use '2: Check Tracked Stories for Link Updates'. Leaving it as 'Active' means the script will continue looking for new chapters for that story.")
-
-    print("\nQ: What does '9: Update Site Configurations from GitHub' do?")
-    print("A: It downloads the newest scraping rules for specific sites (like Royal Road or ScribbleHub) directly from GitHub. Websites change their code frequently, so this allows you to fix a broken site scraper instantly without having to reinstall or manually update the entire main script.")
+    qa = [
+        ("🔗 Bad Story Link?", f"Use {Y}Option 10 -> E{W} to update the URL, or edit 'stories_db.json'."),
+        ("📖 Active vs Complete?", f"{G}Active{W} checks for updates. {S}Complete{W} ignores story."),
+        ("☁️ What is Option 9?", f"Updates scraper rules from GitHub to fix broken sites."),
+        ("🔄 Redownload Chapter?", f"Edit 'chapter_list.txt', remove '✔', delete text, re-run.")
+    ]
     
-    print("\nQ: The scraper keeps timing out or failing to load pages.")
-    print("A: This is usually Cloudflare or a slow connection. The script has built-in retries. If it fails completely, check 'failed_chapters.txt' in your project folder. You can re-run the scraper later and it will only try to grab the ones it missed.")
+    for q, a in qa:
+        print(f"\n{G}Q: {q}{W}\n{W}A: {a}{W}")
     
-    print("\nQ: Cloudflare keeps blocking me.")
-    print("A: When the browser pops up, solve the CAPTCHA manually. The script will wait up to 5 minutes for you to do this before it times out.")
-    
-    print("\nQ: I want to redownload a chapter that got messed up.")
-    print("A: Open 'chapter_list.txt', find the chapter, and remove the '✔' and title from the start of the line. Also, open your scraped text file and delete that chapter's text. Run the scraper again.")
-    print("\n" + "─"*40)
+    print(f"\n{P}──────────────────────────────────────────────{W}")
 
 def update_site_configs(config):
-    """Downloads the latest site configuration files from GitHub."""
+    """Downloads site configs with status emojis."""
+    clr = get_theme_colors()
+    P, S, G, Y, R, W = clr['P'], clr['S'], clr['G'], clr['Y'], clr['R'], clr['W']
+
     from __main__ import REQUESTS_INSTALLED
     if not REQUESTS_INSTALLED:
-        if not check_and_install_dependencies(['requests']):
-            return
+        if not check_and_install_dependencies(['requests']): return
             
-    print("\n" + "─"*10 + " Update Site Configurations " + "─"*10)
+    print(f"\n{S}☁️ Fetching rules from GitHub...{W}")
     repo_url = config.get('github_repo_url', "https://api.github.com/repos/crua9/Web-Novel-Scraper-Suite/contents/site_configs")
-    repo_url_prompt = f"🔗 Enter GitHub API URL [default: {repo_url}]: "
-    
-    user_input_url = input(repo_url_prompt).strip()
-    if user_input_url:
-        repo_url = user_input_url
-        config["github_repo_url"] = repo_url
-        save_config(config)
     
     try:
         response = requests.get(repo_url)
@@ -112,16 +114,12 @@ def update_site_configs(config):
         updated = 0
         for file_info in files:
             if file_info['type'] == 'file' and file_info['name'].endswith('.py'):
-                print(f"  -> Downloading {file_info['name']}...")
-                file_content = requests.get(file_info['download_url']).text
+                print(f"  📥 {file_info['name']}...")
+                content = requests.get(file_info['download_url']).text
                 with open(os.path.join("site_configs", file_info['name']), 'w', encoding='utf-8') as f:
-                    f.write(file_content)
+                    f.write(content)
                 updated += 1
                 
-        if updated > 0:
-            print(f"\n✅ Updated {updated} file(s). Restart the script for changes to take effect.")
-        else:
-            print("\nNo new configuration files found.")
-            
+        print(f"\n✅ {G}Updated {updated} files.{W}")
     except Exception as e:
-        print(f"❌ Error fetching from GitHub: {e}")
+        print(f"❌ {R}Update failed: {e}{W}")
