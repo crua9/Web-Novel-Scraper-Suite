@@ -67,14 +67,18 @@ def manage_stories():
 def show_help_qa():
     """Displays a quick Q&A guide for common issues."""
     print("\n" + "─"*10 + " Help & Troubleshooting Q&A " + "─"*10)
-    print("\nQ: What if a story link goes bad or says [DEAD LINK]?")
-    print("A: Open 'chapter_list.txt' in your project folder, find the broken link, and fix the URL manually or delete the line so the scraper skips it. You can also run the 'Check for Revived Links' tool from the main menu.")
+    
+    print("\nQ: What if a main story link goes bad or needs to be changed?")
+    print("A: Open the 'stories_db.json' file in the main folder and edit the URL there, or use option '10: Manage Tracked Stories' from the main menu, press 'E' to edit, and paste the new link.")
+    
+    print("\nQ: What does marking a story as Active or Complete do?")
+    print("A: Marking a story as 'Complete' tells the scraper to ignore it when you use '2: Check Tracked Stories for Link Updates'. Leaving it as 'Active' means the script will continue looking for new chapters for that story.")
+
+    print("\nQ: What does '9: Update Site Configurations from GitHub' do?")
+    print("A: It downloads the newest scraping rules for specific sites (like Royal Road or ScribbleHub) directly from GitHub. Websites change their code frequently, so this allows you to fix a broken site scraper instantly without having to reinstall or manually update the entire main script.")
     
     print("\nQ: The scraper keeps timing out or failing to load pages.")
     print("A: This is usually Cloudflare or a slow connection. The script has built-in retries. If it fails completely, check 'failed_chapters.txt' in your project folder. You can re-run the scraper later and it will only try to grab the ones it missed.")
-    
-    print("\nQ: How do I change the main URL for a story if it moved?")
-    print("A: Use option '10: Manage Tracked Stories' from the main menu, press 'E' to edit, and paste the new link.")
     
     print("\nQ: Cloudflare keeps blocking me.")
     print("A: When the browser pops up, solve the CAPTCHA manually. The script will wait up to 5 minutes for you to do this before it times out.")
