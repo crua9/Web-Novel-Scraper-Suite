@@ -64,8 +64,13 @@ def get_all_chapter_links(story_url):
     print("🌐 Launching browser...")
     urls = []
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
+        user_data_dir = os.path.join(os.getcwd(), "browser_data")
+        context = p.chromium.launch_persistent_context(
+            user_data_dir, 
+            headless=False,
+            args=["--disable-blink-features=AutomationControlled"]
+        )
+        page = context.pages[0] if context.pages else context.new_page()
         try:
             print(f"📄 Loading story page: {story_url}")
             page.goto(story_url, timeout=60000)
