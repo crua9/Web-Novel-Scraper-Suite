@@ -7,7 +7,7 @@ from modules.utils import (
     load_config, save_config, check_and_install_dependencies,
     load_site_configs, SITE_CONFIGS_DIR, print_progress_bar, scrape_chapter_content
 )
-from modules.admin_tools import manage_stories, update_site_configs
+from modules.admin_tools import manage_stories, update_site_configs, sync_db_with_text
 from modules.link_manager import scrape_new_story_links, check_for_updates, check_for_revived_links
 from modules.content_manager import assemble_chapter_list, scrape_story_content
 from modules.converter_tools import create_epub_from_files, create_edge_html_from_file, create_mp3s_from_file
@@ -75,8 +75,9 @@ def main_menu():
         print("--- Administration ---")
         print("9: Update Site Configurations from GitHub")
         print("10: Manage Tracked Stories (Mark as Complete/Active)")
-        print("11: Exit")
-        choice = input("Enter your choice (1-11): ").strip()
+        print("11: Sync Database via Text File (Delete Stories)")
+        print("12: Exit")
+        choice = input("Enter your choice (1-12): ").strip()
 
         # Route to the correct function, with on-demand dependency checks
         if choice == '1': 
@@ -84,11 +85,9 @@ def main_menu():
                 scrape_new_story_links(config, SITE_CONFIGS)
         elif choice == '2': 
             if check_and_install_dependencies(['playwright', 'requests']):
-                # FIX: Pass the loaded config object to the function.
                 check_for_updates(config, SITE_CONFIGS)
         elif choice == '3':
              if check_and_install_dependencies(['playwright']):
-                # FIX: Pass the loaded config object to the function.
                 check_for_revived_links(config, SITE_CONFIGS)
         elif choice == '4':
             assemble_chapter_list()
@@ -107,6 +106,8 @@ def main_menu():
         elif choice == '10':
             manage_stories()
         elif choice == '11':
+            sync_db_with_text()
+        elif choice == '12':
             print("Goodbye!"); break
         else:
             print("⚠️ Invalid choice.")
