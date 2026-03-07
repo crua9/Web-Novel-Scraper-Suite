@@ -58,8 +58,31 @@ def create_epub_from_files():
         print("No valid files selected."); return
 
     # --- EPUB Metadata ---
-    author_name = input("\nEnter the author's name: ").strip() or "Unknown Author"
-    book_title = input(f"Enter the book title [default: {project_folder}]: ").strip() or project_folder
+    from .utils import load_stories_db
+    import requests
+    
+    db = load_stories_db()
+    story_url = db.get(project_folder, {}).get("story_url", "")
+    default_author = "Unknown Author"
+    
+    # Quickly grab the author from the web page
+    if story_url:
+        try:
+            html = requests.get(story_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5).text
+            if "royalroad" in story_url:
+                m = re.search(r'property="books:author" content="([^"]+)"', html)
+                if m: default_author = m.group(1)
+            elif "scribblehub" in story_url:
+                m = re.search(r'<span property="name">([^<]+)</span>', html)
+                if m: default_author = m.group(1)
+        except Exception:
+            pass
+
+    # Default to the text file name if only one file is selected
+    default_title = selected_files[0].replace(".txt", "") if len(selected_files) == 1 else project_folder
+    
+    author_name = input(f"\nEnter the author's name [default: {default_author}]: ").strip() or default_author
+    book_title = input(f"Enter the book title [default: {default_title}]: ").strip() or default_title
     
     book = epub.EpubBook()
     book.set_identifier(f'urn:uuid:{project_folder}')
@@ -314,4 +337,5 @@ def create_mp3s_from_file():
             continue
             
     print(f"\n🎉 Conversion complete. {total_chapters} chapters processed.")
+
 
