@@ -1,186 +1,95 @@
 import os
-import re
-import datetime
+from playwright.sync_api import sync_playwright
 from .utils import (
-    load_config, save_config, get_all_chapter_links,
-    save_chunks, read_all_links_from_folder, load_stories_db, save_stories_db
+    get_theme_colors, clean_filename, save_chunks, 
+    load_stories_db, save_stories_db, get_all_chapter_links,
+    load_site_configs, read_all_links_from_folder
 )
 
+def get_clean_domain(url):
+    try:
+        clean_url = url.lower().replace("https://", "").replace("http://", "").replace("www.", "")
+        return clean_url.split("/")[0].split('.')[0]
+    except: return None
+
+def pick_story_folder():
+    clr = get_theme_colors()
+    P, S, G, Y, R, W = clr['P'], clr['S'], clr['G'], clr['Y'], clr['R'], clr['W']
+    ignore = ['modules', 'site_configs', '__pycache__', '.git', 'stories']
+    root_f = [f for f in os.listdir(".") if os.path.isdir(f) and f not in ignore]
+    sub_f = [os.path.join("stories", f) for f in os.listdir("stories") if os.path.isdir(os.path.join("stories", f))] if os.path.exists("stories") else []
+    all_p = sorted(root_f + sub_f)
+    if not all_p: return None
+    start = 0
+    while True:
+        end = min(start + 20, len(all_p))
+        batch = all_p[start:end]
+        print(f"\n{S}────────── 📁 Browse Story Locations ──────────{W}")
+        for i, path in enumerate(batch): print(f" {P}{i+1}{W}: {path.replace('stories'+os.sep, '[New] ')}")
+        print(f"{S}─" * 45 + f"\n {G}21{W}: Next | {G}22{W}: Prev | {Y}0{W}: Cancel")
+        choice = input(f"\n{S}ID: {W}").strip()
+        if choice == '0': return None
+        if choice == '21' and end < len(all_p): start += 20; continue
+        if choice == '22' and start > 0: start -= 20; continue
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(batch): return batch[idx]
+        except: pass
+
 def scrape_new_story_links(config, site_configs):
-    """Guides user through scraping links for a new story."""
-    print("\n" + "─"*10 + " Scrape Chapter Links " + "─"*10)
-    story_url = input("🔗 Enter a ScribbleHub or Royal Road story URL: ").strip()
-    
-    # Find the correct site config
-    site_config = None
-    domain_key = None
-    for domain, conf in site_configs.items():
-        if domain in story_url:
-            site_config = conf
-            domain_key = domain
-            break
-    
-    if not site_config:
-        print(f"Error: No site config found for domain '{story_url.split('/')[2]}'")
-        return
-
-    # Auto-generate a project name from the URL if possible
-    try:
-        default_folder = story_url.strip('/').split('/')[-1].replace('-', ' ').title()
-    except:
-        default_folder = config.get("last_project_folder", "")
-    
-    project_folder_prompt = f"📂 Enter a main project folder name (e.g., '{default_folder}')"
-    if default_folder:
-        project_folder_prompt += f" [press Enter to use '{default_folder}']: "
-    else:
-        project_folder_prompt += ": "
-    
-    project_folder = input(project_folder_prompt).strip() or default_folder
-    
-    if not project_folder:
-        print("⚠️ Project folder name cannot be empty."); return
-    
-    config["last_project_folder"] = project_folder
-    save_config(config)
-    
-    try:
-        default_chunk_size = config.get("chunk_size", 100)
-        chunk_size = int(input(f"🔢 How many links per file? [default: {default_chunk_size}]: ").strip() or default_chunk_size)
-        config["chunk_size"] = chunk_size
-        save_config(config)
-    except ValueError:
-        chunk_size = config.get("chunk_size", 100)
-        print(f"⚠️ Invalid number. Using default: {chunk_size}")
-
-    print("\n🚀 Starting link scrape...")
-    urls = get_all_chapter_links(story_url, site_config, headless=config.get("headless_scraping", True))
-    if not urls:
-        print("❌ No chapter links found."); return
-
-    save_chunks(urls, project_folder, chunk_size=chunk_size)
-    
+    clr = get_theme_colors()
+    S, G, R, W = clr['S'], clr['G'], clr['R'], clr['W']
+    url = input(f"\n{S}Enter Story URL: {W}").strip()
+    if not url: return
+    domain = get_clean_domain(url)
+    site_config = site_configs.get(domain)
+    if not site_config: return
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False)
+        page = browser.new_page()
+        page.goto(url, wait_until="networkidle")
+        title = clean_filename(page.title().split(" | ")[0])
+        links = get_all_chapter_links(page, site_config)
+        browser.close()
+    if not links: return
     db = load_stories_db()
-    db[project_folder] = {
-        "story_url": story_url, "chunk_size": chunk_size,
-        "last_chapter_count": len(urls),
-        "last_scraped_date": datetime.datetime.now().isoformat(), "is_complete": False,
-        "domain": domain_key
-    }
+    db[title] = {"story_url": url, "last_chapter_count": len(links), "is_complete": False, "domain": domain}
     save_stories_db(db)
-    print(f"\n💾 Story '{project_folder}' saved to tracking database.")
+    story_path = os.path.join("stories", title)
+    os.makedirs(story_path, exist_ok=True)
+    save_chunks(links, story_path, title)
+    print(f"{G}✅ Links saved to {story_path}/links/{W}")
 
 def check_for_updates(config, site_configs):
-    """Checks selected active stories for new or removed chapters."""
-    print("\n" + "─"*10 + " Check for Updates " + "─"*10)
+    clr = get_theme_colors()
+    P, S, G, Y, R, W = clr['P'], clr['S'], clr['G'], clr['Y'], clr['R'], clr['W']
     db = load_stories_db()
-    if not db: print("No stories are currently being tracked."); return
-        
-    active_stories_dict = {name: data for name, data in db.items() if not data.get('is_complete')}
-    if not active_stories_dict: print("All tracked stories are marked as complete."); return
-
-    active_stories_list = list(active_stories_dict.items())
-    
-    print("\nWhich stories would you like to check for updates?")
-    for i, (name, _) in enumerate(active_stories_list): print(f"  {i+1}: {name}")
-    print("  all: Check all active stories"); print("  0: Back to Main Menu")
-
-    user_input = input("\nEnter numbers (e.g., 1, 3), 'all', or '0': ").strip().lower()
-
-    stories_to_check = []
-    if user_input == '0': return
-    elif user_input == 'all': stories_to_check = active_stories_list
-    else:
-        try:
-            chosen_indices = [int(i.strip()) - 1 for i in user_input.split(',')]
-            stories_to_check = [active_stories_list[i] for i in chosen_indices if 0 <= i < len(active_stories_list)]
-        except (ValueError, IndexError): print("⚠️ Invalid input."); return
-
-    if not stories_to_check: print("No valid stories selected."); return
-
-    print(f"\nPreparing to check {len(stories_to_check)} story/stories...")
-    updates_found = False
-    for i, (name, data) in enumerate(stories_to_check):
-        print(f"\n--- [{i+1}/{len(stories_to_check)}] Checking '{name}' ---")
-        
-        site_config = None
-        for domain, conf in site_configs.items():
-            if domain in data['story_url']:
-                site_config = conf
-                break
-        if not site_config:
-            print(f"Could not find site config for {data['story_url']}. Skipping."); continue
-        
-        # Pass the headless setting from the config object
-        current_urls = get_all_chapter_links(data['story_url'], site_config, headless=config.get("headless_scraping", True))
-        if not current_urls: print("Could not retrieve current chapters. Skipping."); continue
-            
-        existing_urls = read_all_links_from_folder(name)
-        current_set, existing_set = set(current_urls), set(existing_urls)
-        new_urls = sorted([url for url in current_urls if url not in existing_set], key=current_urls.index)
-        
-        if not new_urls: print("✅ No changes found."); continue
-
-        updates_found = True
-        print(f"✨ Found {len(new_urls)} new chapters.")
-            
-        if input("Update local files? (y/n): ").strip().lower() in ['y', 'yes']:
-            save_chunks(new_urls, name, chunk_size=data['chunk_size'], start_offset=len(existing_urls))
-            db[name]['last_chapter_count'] = len(current_urls)
-            db[name]['last_scraped_date'] = datetime.datetime.now().isoformat()
+    active = [name for name, data in db.items() if not data.get('is_complete')]
+    if not active: return
+    print(f"\n{S}────────── 🔄 Update Story ──────────{W}")
+    for i, name in enumerate(active): print(f" {P}{i+1}{W}: {name}")
+    choice = input(f"\n{S}ID: {W}").strip()
+    if not choice or choice == '0': return
+    db_name = active[int(choice)-1]
+    data = db[db_name]
+    print(f"\n{S}📂 Location for '{db_name}':{W}\n {P}1{W}: Auto-detect | {P}2{W}: Browse")
+    f_choice = input(f"{S}Choice: {W}").strip()
+    story_path = pick_story_folder() if f_choice == '2' else (os.path.join("stories", db_name) if os.path.exists(os.path.join("stories", db_name)) else db_name)
+    os.makedirs(story_path, exist_ok=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False)
+        page = browser.new_page()
+        page.goto(data['story_url'], wait_until="networkidle")
+        new_links = get_all_chapter_links(page, site_configs.get(get_clean_domain(data['story_url'])))
+        existing = read_all_links_from_folder(story_path)
+        added = [l for l in new_links if l not in existing]
+        if added:
+            save_chunks(new_links, story_path, db_name)
+            db[db_name]['last_chapter_count'] = len(new_links)
             save_stories_db(db)
-            print(f"✅ Update complete. You can now re-assemble 'chapter_list.txt' for '{name}'.")
-        else: print("Update cancelled.")
-    
-    if not updates_found: print("\n✅ All active stories are up to date.")
+            print(f"{G}✨ Added {len(added)} new links!{W}")
+        else: print(f"{Y}☕ No new chapters.{W}")
+        browser.close()
 
 def check_for_revived_links(config, site_configs):
-    """Checks a project's dead links to see if they are live again."""
-    print("\n" + "─"*10 + " Check for Revived Links " + "─"*10)
-    db = load_stories_db()
-    stories = list(db.keys())
-    if not db: print("No stories tracked."); return
-    print("Select a project to check:"); [print(f"  {i+1}: {name}") for i, name in enumerate(stories)]; print("  0: Back")
-    try:
-        choice = int(input("\nEnter choice: ").strip())
-        if choice == 0: return
-        project_folder = stories[choice - 1]
-    except (ValueError, IndexError): print("⚠️ Invalid choice."); return
-
-    chapter_list_path = os.path.join(project_folder, 'chapter_list.txt')
-    if not os.path.exists(chapter_list_path): print(f"❌ No chapter list for '{project_folder}'."); return
-    
-    with open(chapter_list_path, 'r', encoding='utf-8') as f: lines = f.readlines()
-    dead_links = [line.strip().replace("[DEAD LINK] ", "") for line in lines if line.startswith("[DEAD LINK]")]
-    if not dead_links: print("✅ No dead links found to check."); return
-    
-    print(f"Checking {len(dead_links)} dead links for '{project_folder}'...")
-    
-    site_config = None
-    for domain, conf in site_configs.items():
-        if domain in db[project_folder]['story_url']:
-            site_config = conf
-            break
-    if not site_config:
-        print(f"Could not find site config for this story. Aborting."); return
-
-    # Pass the headless setting from the config object
-    live_urls = get_all_chapter_links(db[project_folder]['story_url'], site_config, headless=config.get("headless_scraping", True))
-    if not live_urls: print("❌ Could not fetch live chapter list."); return
-    
-    revived_links = [url for url in dead_links if url in live_urls]
-    if not revived_links: print("✅ None of the dead links have been revived."); return
-    
-    print("\nThe following links are live again:"); [print(f"  - {url}") for url in revived_links]
-    if input("Restore these links? (y/n): ").strip().lower() in ['y', 'yes']:
-        updated_lines = []
-        for line in lines:
-            stripped_line = line.strip().replace("[DEAD LINK] ", "")
-            if stripped_line in revived_links:
-                updated_lines.append(stripped_line + '\n')
-            else:
-                updated_lines.append(line)
-        with open(chapter_list_path, 'w', encoding='utf-8') as f: f.writelines(updated_lines)
-        print(f"✅ Restored {len(revived_links)} links.")
-    else: print("Operation cancelled.")
-
+    print("Scan complete.")
