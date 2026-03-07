@@ -7,7 +7,7 @@ from modules.utils import (
     load_config, save_config, check_and_install_dependencies,
     load_site_configs, SITE_CONFIGS_DIR, print_progress_bar, scrape_chapter_content
 )
-from modules.admin_tools import manage_stories, update_site_configs, sync_db_with_text
+from modules.admin_tools import manage_stories, update_site_configs, show_help_qa
 from modules.link_manager import scrape_new_story_links, check_for_updates, check_for_revived_links
 from modules.content_manager import assemble_chapter_list, scrape_story_content
 from modules.converter_tools import create_epub_from_files, create_edge_html_from_file, create_mp3s_from_file
@@ -74,12 +74,11 @@ def main_menu():
         print("8: Create MP3 Audio Files from Story File")
         print("--- Administration ---")
         print("9: Update Site Configurations from GitHub")
-        print("10: Manage Tracked Stories (Mark as Complete/Active)")
-        print("11: Sync Database via Text File (Delete Stories)")
+        print("10: Manage Tracked Stories (Edit/Delete/Toggle)")
+        print("11: Help & Troubleshooting Q&A")
         print("12: Exit")
         choice = input("Enter your choice (1-12): ").strip()
 
-        # Route to the correct function, with on-demand dependency checks
         if choice == '1': 
             if check_and_install_dependencies(['playwright']):
                 scrape_new_story_links(config, SITE_CONFIGS)
@@ -106,7 +105,7 @@ def main_menu():
         elif choice == '10':
             manage_stories()
         elif choice == '11':
-            sync_db_with_text()
+            show_help_qa()
         elif choice == '12':
             print("Goodbye!"); break
         else:
@@ -115,7 +114,6 @@ def main_menu():
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    # Add the script's directory to the Python path to allow for module imports
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     if run_startup_checks():
         try:
