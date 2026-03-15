@@ -133,14 +133,13 @@ def scrape_story_content(config, site_configs):
 
     print(f"\n{Y}Found {len(to_scrape)} unscraped chapters in the ledger.{W}")
     
-    # Determine default filename based on chapter indices
     all_links = read_all_links_from_folder(story_path)
     
     def extract_url(line):
         return line.split(" | ")[-1].strip() if " | " in line else line.strip()
 
-    first_url = extract_url(lines[0])
-    last_url = extract_url(lines[-1])
+    first_url = extract_url(lines[to_scrape[0]]) if to_scrape else extract_url(lines[0])
+    last_url = extract_url(lines[to_scrape[-1]]) if to_scrape else extract_url(lines[-1])
     
     start_chap_num = all_links.index(first_url) + 1 if first_url in all_links else 1
     end_chap_num = all_links.index(last_url) + 1 if last_url in all_links else len(lines)
@@ -156,9 +155,6 @@ def scrape_story_content(config, site_configs):
     elif not file_name_input.endswith('.txt'):
         file_name_input += '.txt'
 
-    domain = data.get('domain', '').split('.')[0]
-    site_config = site_configs.get(domain)
-
     print(f"{S}🚀 Starting scraper for {story_name}...{W}")
     
     with sync_playwright() as p:
@@ -168,7 +164,23 @@ def scrape_story_content(config, site_configs):
         content_file = os.path.join(story_path, file_name_input)
         
         for i, idx in enumerate(to_scrape):
-            url = lines[idx]
+            raw_line = lines[idx]
+            url = extract_url(raw_line)
+            
+            # --- Dynamically pick scraper based on the link ---
+            site_config = None
+            if "royalroad.com" in url:
+                site_config = site_configs.get("royalroad")
+            elif "scribblehub.com" in url:
+                site_config = site_configs.get("scribblehub")
+            else:
+                domain_guess = url.replace("https://", "").replace("http://", "").replace("www.", "").split(".")[0]
+                site_config = site_configs.get(domain_guess)
+
+            if not site_config:
+                print(f"\n{R}⚠️ No scraper configuration found for: {url}{W}")
+                continue
+            
             print_progress_bar(i, len(to_scrape), prefix='Progress:', suffix='Complete', length=30)
             
             try:
@@ -177,7 +189,6 @@ def scrape_story_content(config, site_configs):
                 
                 if title and content:
                     with open(content_file, "a", encoding="utf-8") as out:
-                        # FIXED: Formats exactly how the EPUB/Audio converter expects
                         out.write(f"\n--- {title} ---\n{content}\n")
                     lines[idx] = f"✔ {title} | {url}"
                 else:
@@ -188,7 +199,6 @@ def scrape_story_content(config, site_configs):
 
         browser.close()
 
-    # Update the chapter list with checkmarks
     with open(list_file, "w", encoding="utf-8") as f:
         for line in lines:
             f.write(f"{line}\n")
