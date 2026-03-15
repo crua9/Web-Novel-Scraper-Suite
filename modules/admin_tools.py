@@ -71,6 +71,8 @@ def manage_stories():
                     del db[story_name]
                     save_stories_db(db)
                     print(f"🗑️ Story removed.")
+                    print(f"{Y}ℹ️ Note: The downloaded files and folder for this story are still on your computer. This tool does not delete folders.{W}")
+
                     
         except ValueError:
             print("⚠️ Please enter a number.")
