@@ -1,5 +1,6 @@
 from playwright.sync_api import TimeoutError
 import re
+import unicodedata
 
 # --- Core Settings ---
 DOMAIN = "www.scribblehub.com"
@@ -47,5 +48,25 @@ def get_chapter_content(page, url):
     
     content_text = content_html.replace('</p>', '\n').replace('<p>', '')
     content_text = re.sub('<[^>]*>', '', content_text).strip()
+    
+    # --- ElevenLabs TTS Sanitization ---
+    # ElevenLabs' LLM gets confused by weird unicode, smart punctuation, and hidden HTML entities.
+    # This causes it to "hallucinate" and insert random words/dates (like "1984").
+    
+    # 1. Normalize Unicode (fixes weirdly encoded foreign characters)
+    content_text = unicodedata.normalize("NFKC", content_text)
+    
+    # 2. Flatten smart punctuation (removes tokenizer ambiguity for the TTS engine)
+    replacements = {
+        '“': '"', '”': '"',
+        '‘': "'", '’': "'",
+        '—': '-', '–': '-',
+        '…': '...'
+    }
+    for old, new in replacements.items():
+        content_text = content_text.replace(old, new)
+        
+    # 3. Strip zero-width and invisible control characters (removes hidden noise the TTS tries to read)
+    content_text = re.sub(r'[\u200B-\u200F\uFEFF\x00-\x08\x0b\x0c\x0e-\x1f]', '', content_text)
     
     return title, content_text
