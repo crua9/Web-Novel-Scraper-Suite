@@ -1,6 +1,7 @@
 from playwright.sync_api import TimeoutError
 import re
 import json
+import unicodedata
 
 # --- Core Settings ---
 DOMAIN = "www.royalroad.com"
@@ -37,55 +38,56 @@ def get_chapter_content(page, url):
     content_selector = '.chapter-inner'
     page.wait_for_selector(content_selector, timeout=30000)
     
-    # Get raw content
     raw_content = page.inner_text(content_selector)
     
     # --- Anti-Piracy Warning Removal ---
-    # Royal Road injects these to mess with scrapers. We filter them out based on common keywords.
+    # Royal Road injects hidden "zero-width" characters into their warning paragraphs 
+    # to prevent scrapers from using simple Find/Replace.
+    # The triggers below have all spaces removed so they can match against the heavily stripped text.
     warning_triggers = [
-        "taken from royal road",
-        "stolen story",
-        "purloined without the author",
-        "taken without permission from the author",
-        "unlawfully taken from royal road",
-        "genuine version",
-        "unauthorized usage",
-        "official version",
-        "unlawfully lifted",
-        "creativity of authors",
-        "creative writers",
-        "literary theft",
-        "taken without authorization",
-        "illicitly lifted",
-        "favorite authors get the support",
-        "illicitly obtained",
-        "stolen from royal road",
-        "report any occurrences",
-        "appearances on amazon",
-        "report any sightings",
-        "report the violation",
-        "report the incident",
-        "author's preferred platform",
-        "support the creator",
-        "ensure the author gets",
-        "stolen content warning",
-        "story on amazon",
-        "narrative on amazon",
-        "tale is not rightfully on amazon",
-        "read the original version",
-        "support their work!"
+        "takenfromroyalroad", "stolenstory", "purloinedwithout", "takenwithoutpermission",
+        "unlawfullytaken", "genuineversion", "unauthorizedusage", "unauthorizeduse",
+        "officialversion", "unlawfullylifted", "creativityofauthors", "creativewriters",
+        "literarytheft", "takenwithoutauthorization", "illicitlylifted", "illicitlyobtained",
+        "stolenfromroyalroad", "reportanyoccurrences", "appearancesonamazon", "reportanysightings",
+        "reporttheviolation", "reporttheincident", "authorspreferredplatform", "supportthecreator",
+        "ensuretheauthorgets", "stolencontentwarning", "storyonamazon", "narrativeonamazon",
+        "taleisnotrightfullyonamazon", "readtheoriginalversion", "supporttheirwork",
+        "royalroadisthehome", "enjoyingthestoryshowyoursupport", "helpsupportcreativewriters",
+        "ensuretheauthorgetscredit", "anothersitesupporttheauthor", "withouttheauthorsconsent",
+        "reportanyinstances"
     ]
     
     cleaned_lines = []
     for line in raw_content.split('\n'):
-        line_lower = line.strip().lower()
-        # If the line contains any of the warning triggers, skip adding it
-        if line_lower and any(trigger in line_lower for trigger in warning_triggers):
+        # By removing EVERYTHING except letters (including the invisible zero-width characters), 
+        # we can reliably detect the warning phrases and delete the line.
+        alpha_only_line = re.sub(r'[^a-z]', '', line.lower())
+        if alpha_only_line and any(trigger in alpha_only_line for trigger in warning_triggers):
             continue
         cleaned_lines.append(line)
         
-    # Clean up any excessive newlines caused by removing the warning paragraphs
     content = '\n'.join(cleaned_lines)
     content = re.sub(r'\n{3,}', '\n\n', content).strip()
+    
+    # --- ElevenLabs TTS Sanitization ---
+    # ElevenLabs' LLM gets confused by weird unicode, smart punctuation, and hidden HTML entities.
+    # This causes it to "hallucinate" and insert random words/dates (like "1984").
+    
+    # 1. Normalize Unicode (fixes weirdly encoded foreign characters)
+    content = unicodedata.normalize("NFKC", content)
+    
+    # 2. Flatten smart punctuation (removes tokenizer ambiguity for the TTS engine)
+    replacements = {
+        '“': '"', '”': '"',
+        '‘': "'", '’': "'",
+        '—': '-', '–': '-',
+        '…': '...'
+    }
+    for old, new in replacements.items():
+        content = content.replace(old, new)
+        
+    # 3. Strip zero-width and invisible control characters (removes hidden noise the TTS tries to read)
+    content = re.sub(r'[\u200B-\u200F\uFEFF\x00-\x08\x0b\x0c\x0e-\x1f]', '', content)
     
     return title, content
