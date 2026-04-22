@@ -26,6 +26,7 @@ def assemble_chapter_list():
     try:
         idx = int(choice) - 1
         story_name = stories[idx]
+        data = db[story_name]
     except:
         print(f"{R}❌ Invalid Selection.{W}")
         return
@@ -37,13 +38,18 @@ def assemble_chapter_list():
         print(f"{R}❌ No link files found for {story_name}.{W}")
         return
 
+    # Grab the chapter offset we assigned in Hard Sync
+    offset = data.get('chapter_offset', 0)
+    start_display = 1 + offset
+    end_display = len(links) + offset
+
     print(f"\n{Y}Found {len(links)} total links for {story_name}.{W}")
-    start_chap = input(f"{S}Start Chapter (1-{len(links)}) [Press Enter for 1]: {W}").strip()
-    end_chap = input(f"{S}End Chapter (1-{len(links)}) [Press Enter for {len(links)}]: {W}").strip()
+    start_chap = input(f"{S}Start Chapter ({start_display}-{end_display}) [Press Enter for {start_display}]: {W}").strip()
+    end_chap = input(f"{S}End Chapter ({start_display}-{end_display}) [Press Enter for {end_display}]: {W}").strip()
 
     try:
-        start_idx = int(start_chap) - 1 if start_chap else 0
-        end_idx = int(end_chap) if end_chap else len(links)
+        start_idx = int(start_chap) - 1 - offset if start_chap else 0
+        end_idx = int(end_chap) - offset if end_chap else len(links)
         
         # Ensure indices are within bounds
         start_idx = max(0, start_idx)
@@ -86,7 +92,7 @@ def assemble_chapter_list():
             if not found:
                 f.write(f"{link}\n")
 
-    print(f"{G}✅ chapter_list.txt assembled for: {story_name} (Chapters {start_idx + 1} to {end_idx}){W}")
+    print(f"{G}✅ chapter_list.txt assembled for: {story_name} (Chapters {start_idx + 1 + offset} to {end_idx + offset}){W}")
 
 
 def scrape_story_content(config, site_configs):
@@ -134,6 +140,7 @@ def scrape_story_content(config, site_configs):
     print(f"\n{Y}Found {len(to_scrape)} unscraped chapters in the ledger.{W}")
     
     all_links = read_all_links_from_folder(story_path)
+    offset = data.get('chapter_offset', 0)
     
     def extract_url(line):
         return line.split(" | ")[-1].strip() if " | " in line else line.strip()
@@ -141,8 +148,8 @@ def scrape_story_content(config, site_configs):
     first_url = extract_url(lines[to_scrape[0]]) if to_scrape else extract_url(lines[0])
     last_url = extract_url(lines[to_scrape[-1]]) if to_scrape else extract_url(lines[-1])
     
-    start_chap_num = all_links.index(first_url) + 1 if first_url in all_links else 1
-    end_chap_num = all_links.index(last_url) + 1 if last_url in all_links else len(lines)
+    start_chap_num = all_links.index(first_url) + 1 + offset if first_url in all_links else 1 + offset
+    end_chap_num = all_links.index(last_url) + 1 + offset if last_url in all_links else len(lines) + offset
 
     if start_chap_num == end_chap_num:
         default_file = f"{story_name} {start_chap_num}.txt"
