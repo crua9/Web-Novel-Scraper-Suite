@@ -77,7 +77,6 @@ def scrape_new_story_links(config, site_configs):
             story_path = os.path.join("stories", story_name)
             os.makedirs(story_path, exist_ok=True)
             
-            # FIXED: Added story_name argument
             save_chunks(links, story_path, story_name)
             
             db = load_stories_db()
@@ -107,11 +106,33 @@ def check_for_updates(config, site_configs):
         return
 
     print(f"\n{S}────────── 🔄 Check For Updates ──────────{W}")
+    for i, name in enumerate(active):
+        print(f" {P}{i+1}{W}: {name}")
+        
+    choice = input(f"\n{S}Select Story ID, 'A' for All, or 0 to cancel: {W}").strip().lower()
+    if not choice or choice == '0': 
+        return
+        
+    to_check = []
+    if choice == 'a':
+        to_check = active
+    else:
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(active):
+                to_check = [active[idx]]
+            else:
+                print(f"{R}❌ Invalid Selection.{W}")
+                return
+        except ValueError:
+            print(f"{R}❌ Invalid input.{W}")
+            return
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
         page = browser.new_page()
         
-        for db_name in active:
+        for db_name in to_check:
             data = db[db_name]
             domain = get_clean_domain(data['story_url'])
             site_config = site_configs.get(domain)
@@ -128,9 +149,9 @@ def check_for_updates(config, site_configs):
                 
                 added = [l for l in new_links if l not in existing]
                 if added:
-                    # FIXED: Added db_name as the story_name argument
-                    save_chunks(added, story_path, db_name)
-                    db[db_name]['last_chapter_count'] = len(existing) + len(added)
+                    # FIXED: Pass the FULL list of new_links to save_chunks, not just the 'added' list
+                    save_chunks(new_links, story_path, db_name)
+                    db[db_name]['last_chapter_count'] = len(new_links)
                     save_stories_db(db)
                     print(f"{G}Found {len(added)} new!{W}")
                 else:
@@ -138,7 +159,7 @@ def check_for_updates(config, site_configs):
             except Exception as e:
                 print(f"{R}Error: {e}{W}")
         browser.close()
-        print(f"{G}✅ Update check complete!{W}")
+        print(f"\n{G}✅ Update check complete!{W}")
 
 def check_for_revived_links(config, site_configs):
     clr = get_theme_colors()
@@ -218,7 +239,7 @@ def check_for_revived_links(config, site_configs):
             else:
                 os.makedirs(links_dir, exist_ok=True)
                 
-            # Save fresh links (FIXED: Added db_name as the story_name argument)
+            # Save fresh links 
             save_chunks(new_links, story_path, db_name)
             
             # Update chapter count & offset in DB
