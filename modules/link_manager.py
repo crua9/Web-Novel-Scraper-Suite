@@ -149,7 +149,6 @@ def check_for_updates(config, site_configs):
                 
                 added = [l for l in new_links if l not in existing]
                 if added:
-                    # FIXED: Pass the FULL list of new_links to save_chunks, not just the 'added' list
                     save_chunks(new_links, story_path, db_name)
                     db[db_name]['last_chapter_count'] = len(new_links)
                     save_stories_db(db)
@@ -211,18 +210,34 @@ def check_for_revived_links(config, site_configs):
             if not new_links:
                 print(f"{R}❌ No links found on the page. Sync aborted to prevent data loss.{W}")
                 return
+
+            print(f"\n{S}🔍 To avoid gaps from deleted chapters, you can set a 'Resume Link'.{W}")
+            print(f"{Y}The scraper will ignore all chapters before this link and start fresh from it.{W}")
+            resume_url = input(f"\n{S}Enter the URL of the chapter to start from (Press Enter to keep all): {W}").strip()
+
+            if resume_url:
+                slice_idx = -1
+                for i, link in enumerate(new_links):
+                    if resume_url in link or link in resume_url:
+                        slice_idx = i
+                        break
                 
-            # Fetch the title of the oldest chapter to help the user set the numbering
-            print(f"\n{S}🔍 Fetching title of the oldest available chapter to help you set the numbering...{W}")
+                if slice_idx != -1:
+                    new_links = new_links[slice_idx:]
+                    print(f"{G}✅ Found link! Slicing list to start from this chapter. ({len(new_links)} links remaining){W}")
+                else:
+                    print(f"{R}⚠️ Could not find that exact URL in the list. Proceeding with all links.{W}")
+                
+            print(f"\n{S}🔍 Fetching title of the starting chapter to help you set the numbering...{W}")
             try:
                 title, _ = scrape_chapter_content(page, new_links[0], site_config)
             except:
                 title = "Unknown Title"
                 
-            print(f"\n{P}Oldest Available Chapter on Site:{W} {G}{title}{W}")
+            print(f"\n{P}Starting Chapter on Site:{W} {G}{title}{W}")
             print(f"{P}URL:{W} {new_links[0]}")
             
-            offset_input = input(f"\n{S}What chapter number should this be? (e.g. 28) [Press Enter for 1]: {W}").strip()
+            offset_input = input(f"\n{S}What chapter number is this? (e.g. 233) [Press Enter for 1]: {W}").strip()
             try:
                 start_num = int(offset_input) if offset_input else 1
                 offset = max(0, start_num - 1)
@@ -230,7 +245,6 @@ def check_for_revived_links(config, site_configs):
                 print(f"{Y}⚠️ Invalid input. Defaulting to Chapter 1.{W}")
                 offset = 0
 
-            # Wipe old links
             links_dir = os.path.join(story_path, "links")
             if os.path.exists(links_dir):
                 for file in os.listdir(links_dir):
@@ -239,17 +253,15 @@ def check_for_revived_links(config, site_configs):
             else:
                 os.makedirs(links_dir, exist_ok=True)
                 
-            # Save fresh links 
             save_chunks(new_links, story_path, db_name)
             
-            # Update chapter count & offset in DB
             db[db_name]['last_chapter_count'] = len(new_links)
             db[db_name]['chapter_offset'] = offset
             save_stories_db(db)
             
             print(f"\n{G}✅ Hard Sync complete! Old dead links deleted.{W}")
             print(f"{G}✅ Saved {len(new_links)} current links. Offset set to +{offset}.{W}")
-            print(f"{Y}⚠️ Don't forget to run Option 4 (Assemble chapter_list)! Type 'n' when it asks to clear progress so your read chapters stay checked off!{W}")
+            print(f"{Y}⚠️ Don't forget to run Option 4 (Assemble chapter_list)! Type 'y' when it asks to clear progress so your read chapters stay checked off!{W}")
             
         except Exception as e:
             print(f"{R}❌ Error during sync: {e}{W}")
