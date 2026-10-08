@@ -4,7 +4,7 @@ from .utils import (
     get_theme_colors, clean_filename, save_chunks, 
     load_stories_db, save_stories_db, get_all_chapter_links,
     load_site_configs, read_all_links_from_folder,
-    scrape_chapter_content, open_browser, goto, Spinner
+    scrape_chapter_content, open_browser, goto, Spinner, save_author
 )
 
 def get_clean_domain(url):
@@ -87,6 +87,7 @@ def scrape_new_story_links(config, site_configs):
                 "is_complete": False,
                 "chapter_offset": 0
             }
+            save_author(page, db, story_name)
             save_stories_db(db)
             print(f"{G}✅ Story '{story_name}' added and links saved!{W}")
             
@@ -145,6 +146,7 @@ def check_for_updates(config, site_configs):
             
             try:
                 goto(page, data['story_url'], spin="Loading story page")
+                if save_author(page, db, db_name): save_stories_db(db)
                 new_links = get_all_chapter_links(page, site_config)
                 existing = read_all_links_from_folder(story_path)
                 
@@ -201,6 +203,7 @@ def check_for_revived_links(config, site_configs):
             browser, page = open_browser(p)
         try:
             goto(page, data['story_url'], spin="Loading story page")
+            if save_author(page, db, db_name): save_stories_db(db)
             domain = get_clean_domain(data['story_url'])
             site_config = site_configs.get(domain)
             
