@@ -223,6 +223,34 @@ def goto(page, url, timeout=60000, spin=None):
     if not wait_for_cloudflare(page):
         raise RuntimeError("Blocked by Cloudflare")
 
+def extract_author(html):
+    """Pull the author's name out of a story page's HTML (Royal Road or ScribbleHub). Returns None if not found."""
+    import html as htmlmod
+    patterns = [
+        r'property="books:author"\s+content="([^"]+)"',
+        r'<meta[^>]+name="author"[^>]+content="([^"]+)"',
+        r'<h4[^>]*>\s*<span[^>]*>\s*by\s*</span>\s*<span[^>]*>\s*<a[^>]*>([^<]+)</a>',
+        r'class="auth_name_fic"[^>]*>([^<]+)<',
+        r'<span property="name">([^<]+)</span>',
+    ]
+    for pat in patterns:
+        m = re.search(pat, html, re.IGNORECASE)
+        if m:
+            name = htmlmod.unescape(m.group(1)).strip()
+            if name and not name.lower().startswith("http"):
+                return name
+    return None
+
+def save_author(page, db, story_name):
+    """Read the author from the currently loaded story page and store it in the stories db."""
+    try:
+        name = extract_author(page.content())
+    except Exception:
+        name = None
+    if name and story_name in db:
+        db[story_name]['author'] = name
+    return name
+
 def get_all_chapter_links(page, site_config):
     return site_config.get_chapter_links(page)
 
