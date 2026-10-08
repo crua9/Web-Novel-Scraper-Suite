@@ -56,14 +56,27 @@ def create_epub_from_files():
     db = load_stories_db()
     project_key = os.path.basename(project_folder)
     story_url = db.get(project_key, {}).get("story_url", "")
-    author_name = "Unknown Author"
+    author_name = db.get(project_key, {}).get("author") or "Unknown Author"
     
-    if story_url:
+    if author_name == "Unknown Author" and story_url:
+        # Not saved yet: open the browser once (gets past Cloudflare) and save it for next time.
         try:
-            html = requests.get(story_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5).text
-            m = re.search(r'property="books:author" content="([^"]+)"', html) or re.search(r'<span property="name">([^<]+)</span>', html)
-            if m: author_name = m.group(1)
-        except: pass
+            from playwright.sync_api import sync_playwright
+            from .utils import open_browser, goto, Spinner, save_author, save_stories_db
+            with sync_playwright() as p:
+                with Spinner("Opening browser to look up the author"):
+                    browser, page = open_browser(p)
+                try:
+                    goto(page, story_url, spin="Loading story page")
+                    found = save_author(page, db, project_key)
+                    if found:
+                        save_stories_db(db)
+                        author_name = found
+                finally:
+                    with Spinner("Closing browser"):
+                        browser.close()
+        except Exception as e:
+            print(f"{Y}⚠️ Couldn't look up the author: {e}{W}")
 
     default_title = selected_files[0].replace(".txt", "") if len(selected_files) == 1 else project_key
     author_name = input(f"\n{S}Author [{author_name}]: {W}").strip() or author_name
