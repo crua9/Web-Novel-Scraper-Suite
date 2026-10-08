@@ -1,4 +1,5 @@
 from playwright.sync_api import TimeoutError
+from modules.utils import goto
 import re
 import unicodedata
 
@@ -31,7 +32,7 @@ def get_chapter_links(page):
 
 def get_chapter_content(page, url):
     """Scrapes title and content of a single ScribbleHub chapter."""
-    page.goto(url, wait_until='domcontentloaded', timeout=60000)
+    goto(page, url)
 
     try:
         page.get_by_role("button", name="Got it!").click(timeout=3000)
