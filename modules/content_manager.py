@@ -1,11 +1,15 @@
+import time
+import random
 import os
 from .utils import (
     get_theme_colors, load_stories_db, clean_filename, 
-    read_all_links_from_folder, scrape_chapter_content, print_progress_bar
+    read_all_links_from_folder, scrape_chapter_content, open_browser, goto, print_progress_bar
 )
 from playwright.sync_api import sync_playwright
 
-def assemble_chapter_list():
+def assemble_chapter_list(story_name=None, story_path=None, auto_reset=False):
+    """Option 4. Can also be called directly (e.g. after Hard Sync) with a story already chosen.
+    auto_reset=True answers 'yes' to the clear-progress question automatically."""
     clr = get_theme_colors()
     P, S, G, Y, R, W = clr['P'], clr['S'], clr['G'], clr['Y'], clr['R'], clr['W']
     
@@ -16,22 +20,26 @@ def assemble_chapter_list():
         print(f"\n{Y}ℹ️ No stories found in database.{W}")
         return
 
-    print(f"\n{S}────────── 📂 Select Story to Assemble ──────────{W}")
-    for i, name in enumerate(stories):
-        print(f" {P}{i+1}{W}: {name}")
-    
-    choice = input(f"\n{S}Enter ID # (or 0 to cancel): {W}").strip()
-    if not choice or choice == '0': return
+    if story_name is None:
+        print(f"\n{S}────────── 📂 Select Story to Assemble ──────────{W}")
+        for i, name in enumerate(stories):
+            print(f" {P}{i+1}{W}: {name}")
+        
+        choice = input(f"\n{S}Enter ID # (or 0 to cancel): {W}").strip()
+        if not choice or choice == '0': return
 
-    try:
-        idx = int(choice) - 1
-        story_name = stories[idx]
-        data = db[story_name]
-    except:
-        print(f"{R}❌ Invalid Selection.{W}")
-        return
+        try:
+            idx = int(choice) - 1
+            story_name = stories[idx]
+        except:
+            print(f"{R}❌ Invalid Selection.{W}")
+            return
+    else:
+        print(f"\n{S}────────── 📂 Assembling chapter_list for {story_name} ──────────{W}")
 
-    story_path = os.path.join("stories", story_name)
+    data = db.get(story_name, {})
+    if story_path is None:
+        story_path = os.path.join("stories", story_name)
     links = read_all_links_from_folder(story_path)
     
     if not links:
@@ -75,13 +83,18 @@ def assemble_chapter_list():
             existing_entries = [line.strip() for line in f if line.strip()]
 
     reset_progress = False
-    if existing_entries:
+    if existing_entries and auto_reset:
+        print(f"{Y}Clearing previous scrape progress (auto: yes).{W}")
+        reset_progress = True
+    elif existing_entries:
         ans = input(f"\n{Y}Clear previous scrape progress (checkmarks) for these chapters? (y/N): {W}").strip().lower()
         if ans == 'y':
             reset_progress = True
 
+    total = len(selected_links)
     with open(output_file, "w", encoding="utf-8") as f:
-        for link in selected_links:
+        for n, link in enumerate(selected_links, 1):
+            print_progress_bar(n, total, prefix='Assembling:', suffix='Complete', length=30)
             found = False
             if not reset_progress:
                 for entry in existing_entries:
@@ -165,8 +178,7 @@ def scrape_story_content(config, site_configs):
     print(f"{S}🚀 Starting scraper for {story_name}...{W}")
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
+        browser, page = open_browser(p)
         
         content_file = os.path.join(story_path, file_name_input)
         
@@ -191,8 +203,8 @@ def scrape_story_content(config, site_configs):
             print_progress_bar(i, len(to_scrape), prefix='Progress:', suffix='Complete', length=30)
             
             try:
-                page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 title, content = scrape_chapter_content(page, url, site_config)
+                time.sleep(random.uniform(1.5, 3.0))  # gentle pacing so Cloudflare doesn't flag rapid-fire loads
                 
                 if title and content:
                     with open(content_file, "a", encoding="utf-8") as out:
