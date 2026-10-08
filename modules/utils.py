@@ -111,6 +111,118 @@ def read_all_links_from_folder(story_path):
                 links.extend([line.strip() for line in f if line.strip()])
     return list(dict.fromkeys(links))
 
+# --- Step status: plain messages, no background threads ---
+class Spinner:
+    """Usage:  with Spinner("Closing browser"): slow_thing()
+    Prints  ⏳ Closing browser...  then  ✅ Closing browser (3s)"""
+    active = None
+
+    def __init__(self, message):
+        self.message = message
+        self.paused = False
+
+    def __enter__(self):
+        import time
+        self._start = time.time()
+        clr = get_theme_colors()
+        print(f"{clr['S']}⏳ {self.message}...{clr['W']}", flush=True)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        import time
+        clr = get_theme_colors()
+        secs = int(time.time() - self._start)
+        if exc_type is None:
+            print(f"{clr['G']}✅ {self.message} done ({secs}s){clr['W']}", flush=True)
+        elif exc_type is not KeyboardInterrupt:
+            print(f"{clr['R']}❌ {self.message} failed ({secs}s){clr['W']}", flush=True)
+        return False
+
+# --- Browser launching (Cloudflare-friendly) ---
+BROWSER_PROFILE_DIR = "browser_profile"
+CHALLENGE_MARKERS = [
+    "performing security verification",
+    "verify you are human",
+    "just a moment",
+    "checking your browser",
+    "attention required",
+]
+
+def open_browser(p):
+    """
+    Opens a real, persistent browser window and returns (context, page).
+    - Uses installed Chrome, then Edge, then Playwright's Chromium as a last resort.
+    - Keeps a saved profile in ./browser_profile so the Cloudflare pass cookie survives between runs.
+    - Turns off the flags that tell sites the browser is automated.
+    Close it with context.close().
+    """
+    profile = os.path.abspath(BROWSER_PROFILE_DIR)
+    os.makedirs(profile, exist_ok=True)
+    opts = dict(
+        user_data_dir=profile,
+        headless=False,
+        no_viewport=True,
+        args=["--disable-blink-features=AutomationControlled", "--start-maximized"],
+        ignore_default_args=["--enable-automation"],
+    )
+    last_err = None
+    for channel in ("chrome", "msedge", None):
+        try:
+            if channel:
+                context = p.chromium.launch_persistent_context(channel=channel, **opts)
+            else:
+                context = p.chromium.launch_persistent_context(**opts)
+            break
+        except Exception as e:
+            last_err = e
+            context = None
+    if context is None:
+        raise RuntimeError(f"Could not open a browser. Close any open window using the scraper profile and retry. ({last_err})")
+
+    context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
+    page = context.pages[0] if context.pages else context.new_page()
+    return context, page
+
+def is_challenge_page(page):
+    try:
+        text = (page.title() + " " + page.inner_text("body", timeout=3000)[:2000]).lower()
+    except Exception:
+        return False
+    return any(m in text for m in CHALLENGE_MARKERS)
+
+def wait_for_cloudflare(page, max_wait=180):
+    """If a Cloudflare check is showing, wait for it to clear (you can click it in the window)."""
+    import time
+    if not is_challenge_page(page):
+        return True
+    clr = get_theme_colors()
+    if Spinner.active:
+        Spinner.active.paused = True
+        time.sleep(0.3)
+    print(f"\n{clr['Y']}🛡️ Cloudflare check detected. Click the checkbox in the browser window if one shows. Waiting up to {max_wait}s...{clr['W']}")
+    waited = 0
+    while waited < max_wait:
+        time.sleep(2)
+        waited += 2
+        if not is_challenge_page(page):
+            print(f"{clr['G']}✅ Cloudflare passed.{clr['W']}")
+            time.sleep(2)
+            if Spinner.active:
+                Spinner.active.paused = False
+            return True
+    print(f"{clr['R']}❌ Cloudflare check did not clear.{clr['W']}")
+    return False
+
+def goto(page, url, timeout=60000, spin=None):
+    """Load a page and get past Cloudflare if it shows up. spin='message' shows a spinner while loading."""
+    if spin:
+        with Spinner(spin):
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+    else:
+        page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+    if not wait_for_cloudflare(page):
+        raise RuntimeError("Blocked by Cloudflare")
+
 def get_all_chapter_links(page, site_config):
     return site_config.get_chapter_links(page)
 
