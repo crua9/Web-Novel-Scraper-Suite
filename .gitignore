@@ -1,0 +1,4 @@
+browser_profile/
+__pycache__/
+stories/
+stories_db.json
