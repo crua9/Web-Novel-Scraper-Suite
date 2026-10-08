@@ -1,4 +1,5 @@
 from playwright.sync_api import TimeoutError
+from modules.utils import goto
 import re
 import json
 import unicodedata
@@ -29,7 +30,7 @@ def get_chapter_links(page):
 
 def get_chapter_content(page, url):
     """Scrapes title and content of a single Royal Road chapter."""
-    page.goto(url, wait_until='domcontentloaded', timeout=60000)
+    goto(page, url)
     
     title_selector = 'h1'
     page.wait_for_selector(title_selector, timeout=30000)
