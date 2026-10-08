@@ -4,7 +4,7 @@ from .utils import (
     get_theme_colors, clean_filename, save_chunks, 
     load_stories_db, save_stories_db, get_all_chapter_links,
     load_site_configs, read_all_links_from_folder,
-    scrape_chapter_content
+    scrape_chapter_content, open_browser, goto, Spinner
 )
 
 def get_clean_domain(url):
@@ -52,10 +52,10 @@ def scrape_new_story_links(config, site_configs):
         return
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
+        with Spinner("Opening browser"):
+            browser, page = open_browser(p)
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            goto(page, url, spin="Loading story page")
             links = get_all_chapter_links(page, site_config)
             
             if not links:
@@ -93,7 +93,8 @@ def scrape_new_story_links(config, site_configs):
         except Exception as e:
             print(f"{R}❌ Error: {e}{W}")
         finally:
-            browser.close()
+            with Spinner("Closing browser"):
+                browser.close()
 
 def check_for_updates(config, site_configs):
     clr = get_theme_colors()
@@ -129,8 +130,8 @@ def check_for_updates(config, site_configs):
             return
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
+        with Spinner("Opening browser"):
+            browser, page = open_browser(p)
         
         for db_name in to_check:
             data = db[db_name]
@@ -143,7 +144,7 @@ def check_for_updates(config, site_configs):
             os.makedirs(story_path, exist_ok=True)
             
             try:
-                page.goto(data['story_url'], wait_until="domcontentloaded", timeout=60000)
+                goto(page, data['story_url'], spin="Loading story page")
                 new_links = get_all_chapter_links(page, site_config)
                 existing = read_all_links_from_folder(story_path)
                 
@@ -157,7 +158,8 @@ def check_for_updates(config, site_configs):
                     print(f"{Y}Up to date.{W}")
             except Exception as e:
                 print(f"{R}Error: {e}{W}")
-        browser.close()
+        with Spinner("Closing browser"):
+            browser.close()
         print(f"\n{G}✅ Update check complete!{W}")
 
 def check_for_revived_links(config, site_configs):
@@ -192,12 +194,13 @@ def check_for_revived_links(config, site_configs):
         return
         
     os.makedirs(story_path, exist_ok=True)
+    sync_ok = False
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
+        with Spinner("Opening browser"):
+            browser, page = open_browser(p)
         try:
-            page.goto(data['story_url'], wait_until="domcontentloaded", timeout=60000)
+            goto(page, data['story_url'], spin="Loading story page")
             domain = get_clean_domain(data['story_url'])
             site_config = site_configs.get(domain)
             
@@ -228,14 +231,7 @@ def check_for_revived_links(config, site_configs):
                 else:
                     print(f"{R}⚠️ Could not find that exact URL in the list. Proceeding with all links.{W}")
                 
-            print(f"\n{S}🔍 Fetching title of the starting chapter to help you set the numbering...{W}")
-            try:
-                title, _ = scrape_chapter_content(page, new_links[0], site_config)
-            except:
-                title = "Unknown Title"
-                
-            print(f"\n{P}Starting Chapter on Site:{W} {G}{title}{W}")
-            print(f"{P}URL:{W} {new_links[0]}")
+            print(f"\n{P}Starting Chapter URL:{W} {new_links[0]}")
             
             offset_input = input(f"\n{S}What chapter number is this? (e.g. 233) [Press Enter for 1]: {W}").strip()
             try:
@@ -261,9 +257,17 @@ def check_for_revived_links(config, site_configs):
             
             print(f"\n{G}✅ Hard Sync complete! Old dead links deleted.{W}")
             print(f"{G}✅ Saved {len(new_links)} current links. Offset set to +{offset}.{W}")
-            print(f"{Y}⚠️ Don't forget to run Option 4 (Assemble chapter_list)! Type 'y' when it asks to clear progress so your read chapters stay checked off!{W}")
+            sync_ok = True
             
         except Exception as e:
             print(f"{R}❌ Error during sync: {e}{W}")
+            sync_ok = False
         finally:
-            browser.close()
+            with Spinner("Closing browser"):
+                browser.close()
+
+    # Automatically run Option 4 for this story, answering 'yes' to clearing progress.
+    if sync_ok:
+        from .content_manager import assemble_chapter_list
+        print(f"\n{S}➡️ Running Option 4 (Assemble chapter_list) automatically...{W}")
+        assemble_chapter_list(story_name=db_name, story_path=story_path, auto_reset=True)
